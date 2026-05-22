@@ -149,6 +149,9 @@ async def check_account_health(settings: Settings, account: Account) -> tuple[in
         max_output_tokens=16,
         tools=None,
         tool_choice=None,
+        tools_enabled=settings.tools_enabled,
+        web_search_enabled=settings.web_search_enabled,
+        x_search_enabled=settings.x_search_enabled,
     )
     kwargs = _session_kwargs(settings)
     async with crequests.AsyncSession(**kwargs) as session:

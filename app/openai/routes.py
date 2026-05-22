@@ -72,6 +72,24 @@ def _reasoning_from_effort(effort: str | None) -> dict[str, Any] | None:
     return {"effort": value} if value else None
 
 
+def _supports_reasoning_effort(model: str) -> bool:
+    return str(model or "").strip() == "grok-4.3"
+
+
+def _responses_reasoning(req: ResponsesRequest, settings: Settings) -> dict[str, Any] | None:
+    if not _supports_reasoning_effort(req.model):
+        return None
+    if req.reasoning is not None:
+        return req.reasoning
+    return _reasoning_from_effort(settings.default_reasoning_effort)
+
+
+def _chat_reasoning(req: ChatCompletionRequest, settings: Settings) -> dict[str, Any] | None:
+    if not _supports_reasoning_effort(req.model):
+        return None
+    return _reasoning_from_effort(req.reasoning_effort or settings.default_reasoning_effort)
+
+
 def _responses_request_payload(req: ResponsesRequest, settings: Settings) -> dict[str, Any]:
     is_stream = bool(req.stream)
     return build_responses_payload(
@@ -84,19 +102,18 @@ def _responses_request_payload(req: ResponsesRequest, settings: Settings) -> dic
         max_output_tokens=req.max_output_tokens,
         tools=req.tools,
         tool_choice=req.tool_choice,
-        reasoning=req.reasoning
-        if req.reasoning is not None
-        else _reasoning_from_effort(settings.default_reasoning_effort),
+        reasoning=_responses_reasoning(req, settings),
         include=req.include,
         store=req.store,
         tools_enabled=settings.tools_enabled,
+        web_search_enabled=settings.web_search_enabled,
+        x_search_enabled=settings.x_search_enabled,
     )
 
 
 def _chat_request_payload(req: ChatCompletionRequest, settings: Settings) -> dict[str, Any]:
     is_stream = bool(req.stream)
     response_input = chat_messages_to_responses_input(req.messages)
-    reasoning_effort = req.reasoning_effort or settings.default_reasoning_effort
     return build_responses_payload(
         model=req.model,
         input_val=response_input,
@@ -107,8 +124,10 @@ def _chat_request_payload(req: ChatCompletionRequest, settings: Settings) -> dic
         max_output_tokens=req.max_tokens,
         tools=req.tools,
         tool_choice=req.tool_choice,
-        reasoning=_reasoning_from_effort(reasoning_effort),
+        reasoning=_chat_reasoning(req, settings),
         tools_enabled=settings.tools_enabled,
+        web_search_enabled=settings.web_search_enabled,
+        x_search_enabled=settings.x_search_enabled,
     )
 
 

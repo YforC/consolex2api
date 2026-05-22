@@ -13,6 +13,46 @@ DEFAULT_TOOLS: list[dict[str, Any]] = [
 DEFAULT_INCLUDE = ["reasoning.encrypted_content"]
 
 
+def _tool_enabled(tool: dict[str, Any], *, web_search_enabled: bool, x_search_enabled: bool) -> bool:
+    tool_type = tool.get("type")
+    if tool_type == "web_search":
+        return web_search_enabled
+    if tool_type == "x_search":
+        return x_search_enabled
+    return True
+
+
+def _default_tools(*, web_search_enabled: bool, x_search_enabled: bool) -> list[dict[str, Any]]:
+    return [
+        tool
+        for tool in DEFAULT_TOOLS
+        if _tool_enabled(tool, web_search_enabled=web_search_enabled, x_search_enabled=x_search_enabled)
+    ]
+
+
+def _filtered_tools(
+    tools: list[Any] | None,
+    *,
+    web_search_enabled: bool,
+    x_search_enabled: bool,
+) -> list[Any]:
+    if tools is None:
+        return _default_tools(web_search_enabled=web_search_enabled, x_search_enabled=x_search_enabled)
+    filtered: list[Any] = []
+    changed = False
+    for tool in tools:
+        if not isinstance(tool, dict):
+            filtered.append(tool)
+            continue
+        if _tool_enabled(tool, web_search_enabled=web_search_enabled, x_search_enabled=x_search_enabled):
+            filtered.append(tool)
+        else:
+            changed = True
+    if not changed and len(filtered) == len(tools):
+        return tools
+    return filtered
+
+
 def build_responses_payload(
     *,
     model: str,
@@ -28,10 +68,19 @@ def build_responses_payload(
     include: list[str] | None = None,
     store: bool | None = None,
     tools_enabled: bool = True,
+    web_search_enabled: bool = True,
+    x_search_enabled: bool = True,
 ) -> dict[str, Any]:
     if tools_enabled:
-        payload_tools = DEFAULT_TOOLS if tools is None else tools
-        payload_tool_choice = "auto" if tool_choice is None else tool_choice
+        payload_tools = _filtered_tools(
+            tools,
+            web_search_enabled=web_search_enabled,
+            x_search_enabled=x_search_enabled,
+        )
+        if payload_tools:
+            payload_tool_choice = "auto" if tool_choice is None else tool_choice
+        else:
+            payload_tool_choice = "none"
     else:
         payload_tools = []
         payload_tool_choice = "none"

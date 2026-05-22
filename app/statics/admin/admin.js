@@ -54,8 +54,9 @@ const CONFIG_KEY_HINTS = {
   'upstream.referer': '只作为没有 team_id 的账号兜底；正常不要写固定 team URL。',
   'upstream.cf_cookies': 'Cloudflare 相关 cookie；不要把 sso 放在这里。',
   'models.ids': '一行一个模型 ID；留空时从 HAR 或默认列表读取。',
-  'generation.tools_enabled': '开启时保留用户 tools/tool_choice，未传 tools 时使用网关默认搜索工具；关闭时强制禁用 tools。',
-  'generation.reasoning_effort': '请求没有 reasoning/reasoning_effort 时才使用这里的默认值。',
+  'generation.web_search_enabled': '控制上游 payload 中是否允许 web_search；关闭时会过滤该工具。',
+  'generation.x_search_enabled': '控制上游 payload 中是否允许 x_search；关闭时会过滤该工具。',
+  'generation.reasoning_effort': '只对 grok-4.3 生效；请求没有 reasoning/reasoning_effort 时才使用这里的默认值。',
 };
 
 function setStatus(message, isError=false) {

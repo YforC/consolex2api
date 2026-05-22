@@ -203,6 +203,8 @@ class Settings:
     model_list: list[str]
     admin_key: str = ""
     tools_enabled: bool = True
+    web_search_enabled: bool = True
+    x_search_enabled: bool = True
     default_reasoning_effort: str = ""
 
     @property
@@ -266,6 +268,14 @@ def load_settings() -> Settings:
     skip_ssl = skip_ssl_raw in {"1", "true", "yes", "on"}
     tools_enabled_raw = str(_runtime_setting("GATEWAY_TOOLS_ENABLED", "generation.tools_enabled", "true")).strip().lower()
     tools_enabled = tools_enabled_raw not in {"0", "false", "no", "off"}
+    web_search_enabled_raw = str(
+        _runtime_setting("GATEWAY_WEB_SEARCH_ENABLED", "generation.web_search_enabled", "true")
+    ).strip().lower()
+    web_search_enabled = tools_enabled and web_search_enabled_raw not in {"0", "false", "no", "off"}
+    x_search_enabled_raw = str(
+        _runtime_setting("GATEWAY_X_SEARCH_ENABLED", "generation.x_search_enabled", "true")
+    ).strip().lower()
+    x_search_enabled = tools_enabled and x_search_enabled_raw not in {"0", "false", "no", "off"}
     default_reasoning_effort = str(
         _runtime_setting("DEFAULT_REASONING_EFFORT", "generation.reasoning_effort", "")
     ).strip()
@@ -311,6 +321,8 @@ def load_settings() -> Settings:
         model_list=model_list,
         admin_key=str(_runtime_setting("ADMIN_KEY", "app.admin_key", "")).strip(),
         tools_enabled=tools_enabled,
+        web_search_enabled=web_search_enabled,
+        x_search_enabled=x_search_enabled,
         default_reasoning_effort=default_reasoning_effort,
     )
 
