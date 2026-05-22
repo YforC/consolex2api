@@ -1603,18 +1603,36 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings.request_timeout_s, 45)
         self.assertEqual(settings.model_list, ["m-runtime"])
 
-    def test_environment_overrides_runtime_config(self):
+    def test_runtime_config_overrides_environment(self):
         from app.config import load_settings
 
         defaults = test_file("tmp_config_defaults.toml")
         runtime = test_file("tmp_config_runtime.toml")
         missing_env = test_file("missing_runtime_override.env")
         try:
-            defaults.write_text('[app]\nopenai_api_key = ""\n', encoding="utf-8")
-            runtime.write_text('[app]\nopenai_api_key = "runtime-key"\n', encoding="utf-8")
+            defaults.write_text(
+                '[app]\nopenai_api_key = ""\nadmin_key = ""\n'
+                '\n[upstream]\nproxy = ""\n'
+                '\n[chat]\ntimeout = 120\n'
+                '\n[models]\nids = []\n',
+                encoding="utf-8",
+            )
+            runtime.write_text(
+                '[app]\nopenai_api_key = "runtime-key"\nadmin_key = "runtime-admin"\n'
+                '\n[upstream]\nproxy = "http://runtime-proxy:7890"\n'
+                '\n[chat]\ntimeout = 45\n'
+                '\n[models]\nids = ["m-runtime"]\n',
+                encoding="utf-8",
+            )
             with mock.patch.dict(
                 "os.environ",
-                {"OPENAI_API_KEY": "environment-key"},
+                {
+                    "OPENAI_API_KEY": "environment-key",
+                    "ADMIN_KEY": "environment-admin",
+                    "UPSTREAM_PROXY": "http://environment-proxy:7890",
+                    "REQUEST_TIMEOUT_S": "300",
+                    "GATEWAY_MODELS": "m-environment",
+                },
                 clear=True,
             ), mock.patch(
                 "app.config._dotenv_path",
@@ -1635,7 +1653,11 @@ class GatewayCoreTests(unittest.TestCase):
             runtime.unlink(missing_ok=True)
             config._ENV_CACHE = None
 
-        self.assertEqual(settings.openai_api_key, "environment-key")
+        self.assertEqual(settings.openai_api_key, "runtime-key")
+        self.assertEqual(settings.admin_key, "runtime-admin")
+        self.assertEqual(settings.upstream_proxy, "http://runtime-proxy:7890")
+        self.assertEqual(settings.request_timeout_s, 45)
+        self.assertEqual(settings.model_list, ["m-runtime"])
 
     def test_set_runtime_config_value_writes_nested_toml(self):
         from app.runtime_config import load_runtime_config, set_runtime_config_value
@@ -1881,7 +1903,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings.host, "127.0.0.1")
         self.assertEqual(settings.port, 8899)
 
-    def test_environment_overrides_runtime_host_and_port(self):
+    def test_runtime_config_overrides_environment_host_and_port(self):
         from app.config import load_settings
 
         defaults = test_file("tmp_host_port_env_defaults.toml")
@@ -1915,8 +1937,8 @@ class GatewayCoreTests(unittest.TestCase):
             dotenv.unlink(missing_ok=True)
             config._ENV_CACHE = None
 
-        self.assertEqual(settings.host, "0.0.0.0")
-        self.assertEqual(settings.port, 9900)
+        self.assertEqual(settings.host, "127.0.0.1")
+        self.assertEqual(settings.port, 8899)
 
     def test_load_settings_does_not_default_to_fixed_team_referer(self):
         from app.config import load_settings
@@ -2067,6 +2089,9 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIn("logoutBtn", js)
         self.assertIn("setRefreshingState", js)
         self.assertIn("renderConfigForm", js)
+        self.assertIn("nextAdminKey", js)
+        self.assertIn("wasUsingGatewayKeyForAdmin", js)
+        self.assertIn("sessionStorage.setItem('gateway_admin_key'", js)
         self.assertIn("app.openai_api_key", js)
         self.assertIn("models.ids", js)
         self.assertIn("account-select", js)

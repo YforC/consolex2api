@@ -65,20 +65,16 @@ def env_source(name: str) -> str:
 
 
 def setting_source(env_name: str, config_key: str) -> str:
-    if os.getenv(env_name) is not None:
-        return "environment"
     if runtime_config.runtime_has_value(config_key):
         return "runtime_config"
+    if os.getenv(env_name) is not None:
+        return "environment"
     if env_name in _load_dotenv_values():
         return "dotenv"
     return "unset"
 
 
 def _runtime_setting(env_name: str, config_key: str, default: Any = "") -> Any:
-    value = os.getenv(env_name)
-    if value is not None:
-        return value
-
     marker = object()
     configured = runtime_config.runtime_value(config_key, marker)
     if configured is not marker:
@@ -90,6 +86,10 @@ def _runtime_setting(env_name: str, config_key: str, default: Any = "") -> Any:
                 return configured
         elif configured is not None:
             return configured
+
+    value = os.getenv(env_name)
+    if value is not None:
+        return value
 
     dotenv = _load_dotenv_values().get(env_name)
     if dotenv is not None:

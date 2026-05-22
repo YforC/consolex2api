@@ -388,12 +388,22 @@ async function saveGatewayKey() {
     else if (type === 'select') values[key] = input.value;
     else values[key] = input.value;
   });
+  const nextAdminKey = String(values['app.admin_key'] || '').trim();
+  const nextGatewayKey = String(values['app.openai_api_key'] || '').trim();
+  const wasUsingGatewayKeyForAdmin = !latestSettings?.admin_key_configured;
   const res = await fetch('/admin/api/settings', {
     method:'PUT',
     headers:headers(),
     body:JSON.stringify({ values }),
   });
   if (!res.ok) throw new Error(await res.text());
+  if (nextAdminKey) {
+    adminKeyValue = nextAdminKey;
+    sessionStorage.setItem('gateway_admin_key', adminKeyValue);
+  } else if (wasUsingGatewayKeyForAdmin && nextGatewayKey) {
+    adminKeyValue = nextGatewayKey;
+    sessionStorage.setItem('gateway_admin_key', adminKeyValue);
+  }
   renderSettings(await res.json());
   setStatus('运行配置已保存。');
 }

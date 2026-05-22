@@ -123,7 +123,7 @@ DEFAULT_REASONING_EFFORT=
 ```
 
 不要在 `.env` 中写死某一个账号的 team。账号的 `team_id` 应该通过管理后台或 TXT 导入进入 SQLite。
-`GATEWAY_HOST`、`GATEWAY_PORT` 可以写在 `.env`，也可以在管理后台保存到运行时配置文件 `config.toml`。
+`GATEWAY_HOST`、`GATEWAY_PORT` 可以写在 `.env`，也可以在管理后台保存到运行时配置文件 `config.toml`。后台保存的运行时配置优先级高于 `.env` 和容器环境变量。
 
 ### 4. 启动服务
 
@@ -379,6 +379,22 @@ Compose 持久化数据目录：
 ./data/accounts.sqlite3
 ```
 
+### 6. 停止与删除
+
+停止并删除容器：
+
+```bash
+docker compose down
+```
+
+如果你还想连同匿名卷一起清理：
+
+```bash
+docker compose down -v
+```
+
+如果要清空账号库和本地持久化数据，删除 `./data/` 目录即可。
+
 ## Docker 部署
 
 如果你不想用 Compose，也可以直接用 Docker CLI。同样先获取仓库代码，然后在仓库根目录执行。
@@ -445,6 +461,22 @@ docker logs -f consolex-gateway
 
 如果你把监听端口改成了别的值，请把 `-p` 的宿主机端口和容器端口都改成同一个值。
 
+### 6. 停止与删除
+
+停止容器：
+
+```bash
+docker stop consolex-gateway
+```
+
+删除容器：
+
+```bash
+docker rm consolex-gateway
+```
+
+如果要连同本地持久化数据一起删除，删除 `./data/` 目录。
+
 ## 配置项
 
 | 变量 | 必填 | 说明 |
@@ -474,7 +506,9 @@ docker logs -f consolex-gateway
 | `GATEWAY_MODELS` | 否 | 自定义模型列表 |
 | `HAR_FILE_PATH` | 否 | 可选 HAR 模型解析来源 |
 
-运行时配置也可以由后台写入 `config.toml`。系统环境变量优先级最高。
+运行时配置可以由后台写入 `config.toml`。除 `ACCOUNTS_DB` 这类启动/存储路径外，后台保存的运行时配置优先级高于 `.env` 和容器环境变量，因此 API Key、Admin Key、代理、模型、tools、默认参数保存后会在后续请求中直接生效。
+
+监听 Host/Port 也会写入 `config.toml`，但正在运行的进程不会自动换监听端口；修改后需要重启服务或容器。
 
 ## 常见问题
 
