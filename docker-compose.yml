@@ -9,7 +9,6 @@
       - ./.env
     environment:
       ACCOUNTS_DB: /app/data/accounts.sqlite3
-      UPSTREAM_PROXY: ""
     volumes:
       - ./data:/app/data
 

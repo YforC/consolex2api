@@ -9,7 +9,8 @@
   <a href="#快速开始">快速开始</a> ·
   <a href="#管理后台">管理后台</a> ·
   <a href="#接口说明">接口说明</a> ·
-  <a href="#docker-compose-部署">Docker 部署</a> ·
+  <a href="#docker-compose-部署">Docker Compose 部署</a> ·
+  <a href="#docker-部署">Docker 部署</a> ·
   <a href="#常见问题">常见问题</a>
 </p>
 
@@ -77,17 +78,33 @@ https://console.x.ai/team/<team_id>/chat-playground
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 获取代码
+
+```bash
+git clone https://github.com/YforC/consolex2api.git
+cd consolex2api
+```
+
+后续命令都默认在仓库根目录执行。
+
+### 2. 安装依赖
 
 ```powershell
-cd D:\Desktop\consolex
 python -m pip install fastapi uvicorn curl_cffi pydantic websockets
 ```
 
-### 2. 准备配置
+### 3. 准备配置
+
+在仓库根目录复制示例配置：
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+Linux/macOS：
+
+```bash
+cp .env.example .env
 ```
 
 编辑 `.env`，至少设置：
@@ -103,20 +120,13 @@ GATEWAY_X_SEARCH_ENABLED=true
 DEFAULT_REASONING_EFFORT=
 ```
 
-如果部署在海外服务器，通常可以关闭代理：
-
-```env
-UPSTREAM_PROXY=
-```
-
 不要在 `.env` 中写死某一个账号的 team。账号的 `team_id` 应该通过管理后台或 TXT 导入进入 SQLite。
 
-### 3. 启动服务
+### 4. 启动服务
 
-必须在项目根目录启动，也就是包含 `app/` 的目录：
+在仓库根目录启动，也就是包含 `app/`、`docker-compose.yml` 和 `README.md` 的目录：
 
 ```powershell
-cd D:\Desktop\consolex
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
 ```
 
@@ -126,7 +136,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
 python -m app
 ```
 
-### 4. 打开后台
+### 5. 打开后台
 
 ```txt
 http://127.0.0.1:8787/admin
@@ -307,21 +317,30 @@ WebSocket 支持两种鉴权方式：
 
 ## Docker Compose 部署
 
-### 1. 准备配置
+仓库内已提供 `docker-compose.yml`。它会：
+
+- 构建当前项目镜像
+- 读取同目录下的 `.env`
+- 将账号数据库挂载到 `./data/accounts.sqlite3`
+- 对外暴露 `8787` 端口
+
+### 1. 准备 `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-根据部署环境修改 `.env`：
+按实际环境修改 `.env`，至少确认：
 
 ```env
 OPENAI_API_KEY=replace-with-your-gateway-key
 ADMIN_KEY=replace-with-your-admin-key
-UPSTREAM_PROXY=
+ACCOUNTS_DB=/app/data/accounts.sqlite3
 ```
 
-### 2. 启动服务
+如需走代理，可以在 `.env` 中设置 `UPSTREAM_PROXY`；Compose 不会覆盖它。
+
+### 2. 启动
 
 ```bash
 docker compose up -d --build
@@ -333,10 +352,58 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-Compose 默认将账号数据库持久化到：
+### 4. 访问后台
+
+```txt
+http://127.0.0.1:8787/admin
+```
+
+Compose 持久化数据目录：
 
 ```txt
 ./data/accounts.sqlite3
+```
+
+## Docker 部署
+
+如果你不想用 Compose，也可以直接用 Docker CLI。
+
+### 1. 构建镜像
+
+```bash
+docker build -t consolex2api .
+```
+
+### 2. 运行容器
+
+```bash
+docker run -d \
+  --name consolex-gateway \
+  --restart unless-stopped \
+  -p 8787:8787 \
+  --env-file .env \
+  -e ACCOUNTS_DB=/app/data/accounts.sqlite3 \
+  -v "$(pwd)/data:/app/data" \
+  consolex2api
+```
+
+Windows PowerShell 下可改成：
+
+```powershell
+docker run -d `
+  --name consolex-gateway `
+  --restart unless-stopped `
+  -p 8787:8787 `
+  --env-file .env `
+  -e ACCOUNTS_DB=/app/data/accounts.sqlite3 `
+  -v "${PWD}\data:/app/data" `
+  consolex2api
+```
+
+### 3. 查看日志
+
+```bash
+docker logs -f consolex-gateway
 ```
 
 ## 配置项
@@ -345,7 +412,7 @@ Compose 默认将账号数据库持久化到：
 | --- | --- | --- |
 | `OPENAI_API_KEY` | 是 | `/v1/*` 调用密钥 |
 | `ADMIN_KEY` | 建议 | `/admin` 登录密钥 |
-| `ACCOUNTS_DB` | 否 | SQLite 账号库路径 |
+| `ACCOUNTS_DB` | 否 | SQLite 账号库路径；本地可用相对路径，容器内建议用 `/app/data/accounts.sqlite3` |
 | `UPSTREAM_SSO` | 否 | 单账号兜底，不推荐长期使用 |
 | `UPSTREAM_COOKIE` | 否 | 上游 Cookie 兜底 |
 | `UPSTREAM_CF_COOKIES` | 否 | Cloudflare 相关 cookies |
@@ -372,12 +439,7 @@ Compose 默认将账号数据库持久化到：
 
 ### `No module named 'app'`
 
-启动目录不对。请进入包含 `app/` 的项目根目录：
-
-```powershell
-cd D:\Desktop\consolex
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
-```
+启动目录不对。请进入项目根目录，也就是同时包含 `app/`、`docker-compose.yml` 和 `README.md` 的目录。
 
 ### `/v1/models` 返回 `403 Forbidden`
 
