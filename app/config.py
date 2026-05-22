@@ -296,8 +296,8 @@ def load_settings() -> Settings:
     )
 
     return Settings(
-        host=_env("GATEWAY_HOST", "0.0.0.0"),
-        port=int(_env("GATEWAY_PORT", "8787")),
+        host=str(_runtime_setting("GATEWAY_HOST", "app.host", "0.0.0.0")).strip(),
+        port=int(_runtime_setting("GATEWAY_PORT", "app.port", "8787")),
         openai_api_key=str(_runtime_setting("OPENAI_API_KEY", "app.openai_api_key", "")).strip(),
         upstream_url=str(_runtime_setting("UPSTREAM_URL", "upstream.url", "https://console.x.ai/v1/responses")).strip(),
         upstream_cookie=str(_runtime_setting("UPSTREAM_COOKIE", "upstream.cookie", "")).strip(),

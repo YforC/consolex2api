@@ -114,6 +114,8 @@ OPENAI_API_KEY=replace-with-your-gateway-key
 ADMIN_KEY=replace-with-your-admin-key
 ACCOUNTS_DB=accounts.sqlite3
 UPSTREAM_PROXY=http://127.0.0.1:7899
+GATEWAY_HOST=0.0.0.0
+GATEWAY_PORT=8787
 GATEWAY_TOOLS_ENABLED=true
 GATEWAY_WEB_SEARCH_ENABLED=true
 GATEWAY_X_SEARCH_ENABLED=true
@@ -121,19 +123,20 @@ DEFAULT_REASONING_EFFORT=
 ```
 
 不要在 `.env` 中写死某一个账号的 team。账号的 `team_id` 应该通过管理后台或 TXT 导入进入 SQLite。
+`GATEWAY_HOST`、`GATEWAY_PORT` 可以写在 `.env`，也可以在管理后台保存到运行时配置文件 `config.toml`。
 
 ### 4. 启动服务
 
 在仓库根目录启动，也就是包含 `app/`、`docker-compose.yml` 和 `README.md` 的目录：
 
 ```powershell
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
+python -m app
 ```
 
-也可以使用模块入口：
+如果你想临时覆盖监听地址和端口，也可以直接用 uvicorn：
 
 ```powershell
-python -m app
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
 ```
 
 ### 5. 打开后台
@@ -180,6 +183,7 @@ http://127.0.0.1:8787/admin
 | 状态筛选 | active、disabled、cooling、invalid、failed、异常账号 |
 | 排序查看 | 按状态、失败次数、检查时间等字段查看 |
 | 运行配置 | API Key、Admin Key、代理、Cloudflare、模型列表 |
+| 监听配置 | Host、Port |
 | 生成参数 | Temperature、Top P、`web_search`、`x_search`、`grok-4.3` 默认思考强度 |
 | 安全展示 | 密钥脱敏显示，空密钥不会覆盖旧值 |
 
@@ -322,7 +326,7 @@ WebSocket 支持两种鉴权方式：
 - 构建当前项目镜像
 - 读取同目录下的 `.env`
 - 将账号数据库挂载到 `./data/accounts.sqlite3`
-- 对外暴露 `8787` 端口
+- 按 `.env` 中的 `GATEWAY_PORT` 映射端口，默认 `8787`
 
 ### 1. 准备 `.env`
 
@@ -336,9 +340,11 @@ cp .env.example .env
 OPENAI_API_KEY=replace-with-your-gateway-key
 ADMIN_KEY=replace-with-your-admin-key
 ACCOUNTS_DB=/app/data/accounts.sqlite3
+GATEWAY_PORT=8787
 ```
 
 如需走代理，可以在 `.env` 中设置 `UPSTREAM_PROXY`；Compose 不会覆盖它。
+如果你在管理后台改了监听端口，Docker Compose 的端口映射也要改成同一个值，最简单是同步修改 `.env` 里的 `GATEWAY_PORT` 后重启容器。
 
 ### 2. 启动
 
@@ -406,12 +412,16 @@ docker run -d `
 docker logs -f consolex-gateway
 ```
 
+如果你把监听端口改成了别的值，请把 `-p` 的宿主机端口和容器端口都改成同一个值。
+
 ## 配置项
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | 是 | `/v1/*` 调用密钥 |
 | `ADMIN_KEY` | 建议 | `/admin` 登录密钥 |
+| `GATEWAY_HOST` | 否 | 网关监听 Host，默认 `0.0.0.0` |
+| `GATEWAY_PORT` | 否 | 网关监听端口，默认 `8787` |
 | `ACCOUNTS_DB` | 否 | SQLite 账号库路径；本地可用相对路径，容器内建议用 `/app/data/accounts.sqlite3` |
 | `UPSTREAM_SSO` | 否 | 单账号兜底，不推荐长期使用 |
 | `UPSTREAM_COOKIE` | 否 | 上游 Cookie 兜底 |

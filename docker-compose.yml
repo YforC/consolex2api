@@ -4,7 +4,7 @@
     container_name: consolex-gateway
     restart: unless-stopped
     ports:
-      - "8787:8787"
+      - "${GATEWAY_PORT:-8787}:${GATEWAY_PORT:-8787}"
     env_file:
       - ./.env
     environment:

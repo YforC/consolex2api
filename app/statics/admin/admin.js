@@ -50,6 +50,8 @@ loginAdminKey.value = adminKeyValue;
 const CONFIG_KEY_HINTS = {
   'app.openai_api_key': '客户端调用 /v1/* 时使用的 Bearer Key。',
   'app.admin_key': '进入管理后台使用的 Key。建议和网关 API Key 分开。',
+  'app.host': '网关监听地址；Docker 内通常保持 0.0.0.0。',
+  'app.port': '网关监听端口；修改后需要重启服务生效。',
   'upstream.proxy': '本地代理示例：http://127.0.0.1:7897。服务器直连时留空。',
   'upstream.referer': '只作为没有 team_id 的账号兜底；正常不要写固定 team URL。',
   'upstream.cf_cookies': 'Cloudflare 相关 cookie；不要把 sso 放在这里。',

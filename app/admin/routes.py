@@ -170,6 +170,8 @@ def _load_gateway_settings_summary() -> dict[str, Any]:
     values = {
         "app.openai_api_key": "",
         "app.admin_key": "",
+        "app.host": settings.host,
+        "app.port": settings.port,
         "upstream.url": settings.upstream_url,
         "upstream.cluster": settings.upstream_cluster,
         "upstream.origin": settings.upstream_origin,
@@ -205,6 +207,8 @@ def _load_gateway_settings_summary() -> dict[str, Any]:
         "sources": {
             "app.openai_api_key": setting_source("OPENAI_API_KEY", "app.openai_api_key"),
             "app.admin_key": setting_source("ADMIN_KEY", "app.admin_key"),
+            "app.host": setting_source("GATEWAY_HOST", "app.host"),
+            "app.port": setting_source("GATEWAY_PORT", "app.port"),
             "upstream.proxy": setting_source("UPSTREAM_PROXY", "upstream.proxy"),
             "upstream.cf_cookies": setting_source("UPSTREAM_CF_COOKIES", "upstream.cf_cookies"),
             "upstream.cf_clearance": setting_source("UPSTREAM_CF_CLEARANCE", "upstream.cf_clearance"),
@@ -226,6 +230,8 @@ def _settings_fields() -> list[dict[str, Any]]:
             "fields": [
                 {"key": "app.openai_api_key", "label": "网关 API Key", "type": "password"},
                 {"key": "app.admin_key", "label": "Admin Key", "type": "password"},
+                {"key": "app.host", "label": "监听 Host", "type": "text"},
+                {"key": "app.port", "label": "监听端口", "type": "number"},
             ],
         },
         {
@@ -283,6 +289,11 @@ def _coerce_setting_value(key: str, value: Any) -> Any:
         if isinstance(value, list):
             return [str(item).strip() for item in value if str(item).strip()]
         return [part.strip() for part in str(value or "").splitlines() if part.strip()]
+    if key == "app.port":
+        port = int(value)
+        if port < 1 or port > 65535:
+            raise HTTPException(status_code=400, detail="Port must be between 1 and 65535.")
+        return port
     if key in {"chat.timeout", "generation.temperature", "generation.top_p"}:
         return float(value)
     if key in {"upstream.skip_ssl_verify", "generation.tools_enabled", "generation.web_search_enabled", "generation.x_search_enabled"}:

@@ -1698,6 +1698,8 @@ class GatewayCoreTests(unittest.TestCase):
         field_keys = {field["key"] for group in settings["fields"] for field in group["fields"]}
         self.assertIn("app.openai_api_key", field_keys)
         self.assertIn("app.admin_key", field_keys)
+        self.assertIn("app.host", field_keys)
+        self.assertIn("app.port", field_keys)
         self.assertIn("upstream.proxy", field_keys)
         self.assertIn("upstream.cf_cookies", field_keys)
         self.assertIn("models.ids", field_keys)
@@ -1780,7 +1782,7 @@ class GatewayCoreTests(unittest.TestCase):
         dotenv = test_file("tmp_admin_multi_dotenv.env")
         try:
             defaults.write_text(
-                '[app]\nopenai_api_key = ""\nadmin_key = ""\n'
+                '[app]\nopenai_api_key = ""\nadmin_key = ""\nhost = "0.0.0.0"\nport = 8787\n'
                 '\n[upstream]\nproxy = ""\ncf_cookies = ""\n'
                 '\n[models]\nids = []\n'
                 '\n[chat]\ntimeout = 120\n'
@@ -1807,6 +1809,8 @@ class GatewayCoreTests(unittest.TestCase):
                     "values": {
                         "app.openai_api_key": "runtime-key",
                         "app.admin_key": "admin-secret",
+                        "app.host": "127.0.0.1",
+                        "app.port": 8899,
                         "upstream.proxy": "http://127.0.0.1:7897",
                         "upstream.cf_cookies": "cf_clearance=abc",
                         "models.ids": ["grok-4.3", "grok-4.20-auto"],
@@ -1826,6 +1830,8 @@ class GatewayCoreTests(unittest.TestCase):
 
         self.assertEqual(saved_runtime["app"]["openai_api_key"], "runtime-key")
         self.assertEqual(saved_runtime["app"]["admin_key"], "admin-secret")
+        self.assertEqual(saved_runtime["app"]["host"], "127.0.0.1")
+        self.assertEqual(saved_runtime["app"]["port"], 8899)
         self.assertEqual(saved_runtime["upstream"]["proxy"], "http://127.0.0.1:7897")
         self.assertEqual(saved_runtime["upstream"]["cf_cookies"], "cf_clearance=abc")
         self.assertEqual(saved_runtime["models"]["ids"], ["grok-4.3", "grok-4.20-auto"])
@@ -1841,6 +1847,76 @@ class GatewayCoreTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {"ADMIN_KEY": "admin-secret"}, clear=False):
             settings = load_settings()
         self.assertEqual(settings.admin_key, "admin-secret")
+
+    def test_load_settings_reads_runtime_host_and_port(self):
+        from app.config import load_settings
+
+        defaults = test_file("tmp_host_port_defaults.toml")
+        runtime = test_file("tmp_host_port_runtime.toml")
+        dotenv = test_file("tmp_host_port.env")
+        try:
+            defaults.write_text('[app]\nhost = "0.0.0.0"\nport = 8787\n', encoding="utf-8")
+            runtime.write_text('[app]\nhost = "127.0.0.1"\nport = 8899\n', encoding="utf-8")
+            dotenv.write_text("", encoding="utf-8")
+            with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
+                "app.config._dotenv_path",
+                return_value=dotenv,
+            ), mock.patch(
+                "app.runtime_config.default_config_path",
+                return_value=defaults,
+            ), mock.patch(
+                "app.runtime_config.runtime_config_path",
+                return_value=runtime,
+            ):
+                import app.config as config
+
+                config._ENV_CACHE = None
+                settings = load_settings()
+        finally:
+            defaults.unlink(missing_ok=True)
+            runtime.unlink(missing_ok=True)
+            dotenv.unlink(missing_ok=True)
+            config._ENV_CACHE = None
+
+        self.assertEqual(settings.host, "127.0.0.1")
+        self.assertEqual(settings.port, 8899)
+
+    def test_environment_overrides_runtime_host_and_port(self):
+        from app.config import load_settings
+
+        defaults = test_file("tmp_host_port_env_defaults.toml")
+        runtime = test_file("tmp_host_port_env_runtime.toml")
+        dotenv = test_file("tmp_host_port_env.env")
+        try:
+            defaults.write_text('[app]\nhost = "0.0.0.0"\nport = 8787\n', encoding="utf-8")
+            runtime.write_text('[app]\nhost = "127.0.0.1"\nport = 8899\n', encoding="utf-8")
+            dotenv.write_text("", encoding="utf-8")
+            with mock.patch.dict(
+                "os.environ",
+                {"GATEWAY_HOST": "0.0.0.0", "GATEWAY_PORT": "9900"},
+                clear=True,
+            ), mock.patch(
+                "app.config._dotenv_path",
+                return_value=dotenv,
+            ), mock.patch(
+                "app.runtime_config.default_config_path",
+                return_value=defaults,
+            ), mock.patch(
+                "app.runtime_config.runtime_config_path",
+                return_value=runtime,
+            ):
+                import app.config as config
+
+                config._ENV_CACHE = None
+                settings = load_settings()
+        finally:
+            defaults.unlink(missing_ok=True)
+            runtime.unlink(missing_ok=True)
+            dotenv.unlink(missing_ok=True)
+            config._ENV_CACHE = None
+
+        self.assertEqual(settings.host, "0.0.0.0")
+        self.assertEqual(settings.port, 9900)
 
     def test_load_settings_does_not_default_to_fixed_team_referer(self):
         from app.config import load_settings
