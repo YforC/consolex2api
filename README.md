@@ -1,4 +1,4 @@
-# ConsoleX2API
+<h1 align="center">ConsoleX2API</h1>
 
 <p align="center">
   <b>将 console.x.ai 封装为 OpenAI 兼容接口的轻量级网关</b>
@@ -321,6 +321,15 @@ WebSocket 支持两种鉴权方式：
 
 ## Docker Compose 部署
 
+先获取仓库代码，然后在仓库根目录执行 Docker Compose。
+
+### 1. 获取代码
+
+```bash
+git clone https://github.com/YforC/consolex2api.git
+cd consolex2api
+```
+
 仓库内已提供 `docker-compose.yml`。它会：
 
 - 构建当前项目镜像
@@ -328,7 +337,7 @@ WebSocket 支持两种鉴权方式：
 - 将账号数据库挂载到 `./data/accounts.sqlite3`
 - 按 `.env` 中的 `GATEWAY_PORT` 映射端口，默认 `8787`
 
-### 1. 准备 `.env`
+### 2. 准备 `.env`
 
 ```bash
 cp .env.example .env
@@ -346,19 +355,19 @@ GATEWAY_PORT=8787
 如需走代理，可以在 `.env` 中设置 `UPSTREAM_PROXY`；Compose 不会覆盖它。
 如果你在管理后台改了监听端口，Docker Compose 的端口映射也要改成同一个值，最简单是同步修改 `.env` 里的 `GATEWAY_PORT` 后重启容器。
 
-### 2. 启动
+### 3. 启动
 
 ```bash
 docker compose up -d --build
 ```
 
-### 3. 查看日志
+### 4. 查看日志
 
 ```bash
 docker compose logs -f
 ```
 
-### 4. 访问后台
+### 5. 访问后台
 
 ```txt
 http://127.0.0.1:8787/admin
@@ -372,15 +381,37 @@ Compose 持久化数据目录：
 
 ## Docker 部署
 
-如果你不想用 Compose，也可以直接用 Docker CLI。
+如果你不想用 Compose，也可以直接用 Docker CLI。同样先获取仓库代码，然后在仓库根目录执行。
 
-### 1. 构建镜像
+### 1. 获取代码
+
+```bash
+git clone https://github.com/YforC/consolex2api.git
+cd consolex2api
+```
+
+### 2. 准备 `.env`
+
+```bash
+cp .env.example .env
+```
+
+至少确认：
+
+```env
+OPENAI_API_KEY=replace-with-your-gateway-key
+ADMIN_KEY=replace-with-your-admin-key
+ACCOUNTS_DB=/app/data/accounts.sqlite3
+GATEWAY_PORT=8787
+```
+
+### 3. 构建镜像
 
 ```bash
 docker build -t consolex2api .
 ```
 
-### 2. 运行容器
+### 4. 运行容器
 
 ```bash
 docker run -d \
@@ -406,7 +437,7 @@ docker run -d `
   consolex2api
 ```
 
-### 3. 查看日志
+### 5. 查看日志
 
 ```bash
 docker logs -f consolex-gateway
