@@ -244,6 +244,10 @@ Host and port are also saved to `config.toml`, but changing the active listening
 - Use different values for `OPENAI_API_KEY` and `ADMIN_KEY`.
 - For public deployment, put the service behind a reverse proxy with TLS and access controls.
 
+## Links
+
+- [LINUX DO](https://linux.do)
+
 ## Disclaimer
 
 This project is intended for personal learning, API adaptation, and account management. Use it responsibly and follow the terms of the upstream service.

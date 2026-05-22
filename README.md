@@ -580,6 +580,10 @@ python -m py_compile app/accounts.py app/admin/routes.py app/upstream/xai_client
 - `UPSTREAM_CF_CLEARANCE`、SSO、账号数据库都属于敏感数据。
 - 如果部署到公网，建议在反向代理层增加访问控制和请求日志。
 
+## 友情链接
+
+- [LINUX DO](https://linux.do)
+
 ## 免责声明
 
 本项目仅用于个人学习、接口适配和自有账号管理。使用时请遵守目标服务的条款、账号规则和所在地区法律法规。
