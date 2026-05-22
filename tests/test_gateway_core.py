@@ -160,9 +160,30 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIn("reasoning.encrypted_content", payload["include"])
         self.assertEqual(payload["tools"][0]["type"], "web_search")
         self.assertEqual(payload["tools"][1]["type"], "x_search")
-        self.assertNotIn("enable_image_understanding", payload["tools"][0])
-        self.assertNotIn("enable_video_understanding", payload["tools"][1])
+        self.assertTrue(payload["tools"][0]["enable_image_understanding"])
+        self.assertTrue(payload["tools"][1]["enable_video_understanding"])
         self.assertEqual(payload["max_output_tokens"], 1000000)
+
+    def test_chat_image_url_maps_to_responses_input_image(self):
+        from app.adapters.chat_completions import chat_messages_to_responses_input
+
+        mapped = chat_messages_to_responses_input([
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "what is in this image?"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAA"}},
+                ],
+            }
+        ])
+
+        self.assertEqual(
+            mapped[0]["content"],
+            [
+                {"type": "input_text", "text": "what is in this image?"},
+                {"type": "input_image", "image_url": "data:image/png;base64,AAA"},
+            ],
+        )
 
     def test_responses_payload_preserves_user_tools_and_tool_choice(self):
         from app.adapters.responses import build_responses_payload
@@ -191,6 +212,7 @@ class GatewayCoreTests(unittest.TestCase):
 
         self.assertIs(payload["tools"], tools)
         self.assertIs(payload["tool_choice"], tool_choice)
+        self.assertNotIn("enable_image_understanding", tools[0])
 
     def test_responses_payload_preserves_reasoning_effort(self):
         from app.adapters.responses import build_responses_payload
@@ -220,6 +242,12 @@ class GatewayCoreTests(unittest.TestCase):
         )
 
         self.assertEqual(req.reasoning_effort, "xhigh")
+
+    def test_default_models_include_har2_and_voice_models(self):
+        from app.config import DEFAULT_MODELS
+
+        self.assertIn("grok-build-0.1", DEFAULT_MODELS)
+        self.assertIn("grok-voice-think-fast-1.0", DEFAULT_MODELS)
 
     def test_account_pool_loads_sso_only_accounts(self):
         from app.accounts import AccountPool
@@ -825,10 +853,116 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(status_code, 200)
         self.assertEqual(error, "")
         self.assertEqual(captured["payload"]["tool_choice"], "auto")
-        self.assertEqual(captured["payload"]["tools"], [{"type": "web_search"}, {"type": "x_search"}])
+        self.assertEqual(
+            captured["payload"]["tools"],
+            [
+                {"type": "web_search", "enable_image_understanding": True},
+                {"type": "x_search", "enable_video_understanding": True},
+            ],
+        )
         self.assertNotEqual(captured["payload"].get("tools"), [])
         self.assertNotEqual(captured["payload"].get("tool_choice"), "none")
         self.assertEqual(captured["payload"]["max_output_tokens"], 16)
+
+    def test_realtime_client_secret_uses_account_cookie(self):
+        from app.config import Settings
+        from app.upstream.xai_client import create_realtime_client_secret
+
+        captured = {}
+
+        class FakeResponse:
+            status_code = 200
+            text = '{"client_secret":{"value":"secret-1"}}'
+
+        class FakeSession:
+            def __init__(self, **kwargs):
+                captured["kwargs"] = kwargs
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def post(self, url, *, headers, data, timeout):
+                captured["url"] = url
+                captured["headers"] = headers
+                captured["payload"] = json.loads(data.decode("utf-8"))
+                captured["timeout"] = timeout
+                return FakeResponse()
+
+        path = test_file("tmp_realtime_accounts.json")
+        try:
+            path.write_text('[{"name":"1","sso":"token","team_id":"team-a","status":"active"}]', encoding="utf-8")
+            settings = Settings(
+                host="0.0.0.0",
+                port=8787,
+                openai_api_key="k",
+                upstream_url="https://console.x.ai/v1/responses",
+                upstream_cookie="",
+                upstream_sso="",
+                upstream_cluster="https://us-east-1.api.x.ai",
+                upstream_referer="",
+                upstream_origin="https://console.x.ai",
+                upstream_user_agent="ua",
+                upstream_proxy="",
+                upstream_impersonate="chrome136",
+                upstream_skip_ssl_verify=False,
+                upstream_cf_cookies="",
+                upstream_cf_clearance="",
+                accounts_file=str(path),
+                default_temperature=0.7,
+                default_top_p=0.95,
+                request_timeout_s=120.0,
+                model_list=["grok-4.3"],
+            )
+            with mock.patch("app.upstream.xai_client.crequests.AsyncSession", FakeSession):
+                data = asyncio.run(create_realtime_client_secret(settings, {"expires_after": {"seconds": 300}}))
+        finally:
+            path.unlink(missing_ok=True)
+
+        self.assertEqual(data["client_secret"]["value"], "secret-1")
+        self.assertEqual(captured["url"], "https://console.x.ai/v1/realtime/client_secrets")
+        self.assertEqual(captured["payload"], {"expires_after": {"seconds": 300}})
+        self.assertIn("sso=token", captured["headers"]["cookie"])
+        self.assertIn("last-team-id=team-a", captured["headers"]["cookie"])
+
+    def test_realtime_route_accepts_client_secret_payload(self):
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.config import _ENV_CACHE
+
+        with mock.patch.dict("os.environ", {"OPENAI_API_KEY": "test-key", "UPSTREAM_SSO": "sso-token"}, clear=False):
+            import app.config as config
+
+            config._ENV_CACHE = None
+            with mock.patch(
+                "app.openai.routes.create_realtime_client_secret",
+                new=mock.AsyncMock(return_value={"client_secret": {"value": "secret-1"}}),
+            ) as create_secret:
+                response = TestClient(app).post(
+                    "/v1/realtime/client_secrets",
+                    headers={"Authorization": "Bearer test-key"},
+                    json={"expires_after": {"seconds": 300}},
+                )
+            config._ENV_CACHE = _ENV_CACHE
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["client_secret"]["value"], "secret-1")
+        create_secret.assert_awaited_once()
+        self.assertEqual(create_secret.await_args.args[1], {"expires_after": {"seconds": 300}})
+
+    def test_realtime_passthrough_keeps_stop_and_reset_events_unchanged(self):
+        from app.upstream.realtime import build_realtime_ws_url, prepare_realtime_client_message
+
+        self.assertEqual(
+            build_realtime_ws_url("grok-voice-think-fast-1.0"),
+            "wss://api.x.ai/v1/realtime?model=grok-voice-think-fast-1.0",
+        )
+        cancel = '{"type":"response.cancel"}'
+        reset = '{"type":"session.update","session":{"instructions":"reset"}}'
+        self.assertEqual(prepare_realtime_client_message(cancel), cancel)
+        self.assertEqual(prepare_realtime_client_message(reset), reset)
 
     def test_admin_add_accounts_merges_without_overwriting_existing(self):
         from app.admin.routes import add_accounts
@@ -1118,6 +1252,7 @@ class GatewayCoreTests(unittest.TestCase):
         models = collect_models_from_har(r"D:\Desktop\consolex\console.x.ai.har")
         self.assertIn("grok-4.3", models)
         self.assertIn("grok-4.20-multi-agent-0309", models)
+        self.assertIn("grok-build-0.1", models)
 
     def test_load_settings_with_upstream_proxy(self):
         from app.config import load_settings

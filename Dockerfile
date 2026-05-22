@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn curl_cffi pydantic
+RUN pip install --no-cache-dir fastapi uvicorn curl_cffi pydantic websockets
 
 COPY . .
 

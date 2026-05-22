@@ -34,7 +34,7 @@ def chat_messages_to_responses_input(messages: list[dict[str, Any]]) -> list[dic
                     else:
                         url = str(image_url or "")
                     if url:
-                        parts.append({"type": "input_image", "image_url": {"url": url}})
+                        parts.append({"type": "input_image", "image_url": url})
             mapped.append({"role": role, "content": parts or [{"type": "input_text", "text": ""}]})
             continue
         mapped.append({"role": role, "content": [{"type": "input_text", "text": str(content)}]})
@@ -55,4 +55,3 @@ def responses_output_to_chat_message(response_obj: dict[str, Any]) -> dict[str, 
             if isinstance(part, dict) and part.get("type") == "output_text":
                 text += str(part.get("text", ""))
     return {"role": "assistant", "content": text}
-

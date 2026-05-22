@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import hmac
 import time
 from typing import Any, AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+import websockets
+from fastapi import APIRouter, Body, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,7 +21,14 @@ from ..adapters.responses import build_responses_payload
 from ..adapters.sse import chat_error_stream, responses_async_stream_to_chat_stream
 from ..auth import verify_openai_api_key
 from ..config import load_settings, model_object
-from ..upstream.xai_client import UpstreamError, create_response_json, stream_response_events
+from ..auth import extract_bearer_token
+from ..upstream.realtime import build_realtime_subprotocol, build_realtime_ws_url, prepare_realtime_client_message
+from ..upstream.xai_client import (
+    UpstreamError,
+    create_realtime_client_secret,
+    create_response_json,
+    stream_response_events,
+)
 
 
 router = APIRouter(prefix="/v1")
@@ -62,6 +72,107 @@ async def list_models() -> JSONResponse:
     settings = load_settings()
     data = [model_object(mid) for mid in settings.model_list]
     return JSONResponse({"object": "list", "data": data})
+
+
+@router.post("/realtime/client_secrets", dependencies=[Depends(verify_openai_api_key)])
+async def realtime_client_secrets(payload: dict[str, Any] | None = Body(default=None)) -> JSONResponse:
+    settings = load_settings()
+    if not settings.has_upstream_auth():
+        raise HTTPException(status_code=500, detail="UPSTREAM_COOKIE or UPSTREAM_SSO is required.")
+    return JSONResponse(await create_realtime_client_secret(settings, payload or {}))
+
+
+def _websocket_api_key(websocket: WebSocket) -> str:
+    auth = websocket.headers.get("authorization")
+    token = extract_bearer_token(auth)
+    if token:
+        return token
+    return websocket.query_params.get("api_key", "")
+
+
+def _xai_realtime_subprotocol(raw_header: str | None) -> str:
+    for part in str(raw_header or "").split(","):
+        protocol = part.strip()
+        if protocol.startswith("xai-client-secret."):
+            return protocol
+    return ""
+
+
+async def _accept_or_close_realtime(websocket: WebSocket) -> bool:
+    settings = load_settings()
+    expected = settings.openai_api_key
+    provided = _websocket_api_key(websocket)
+    if not expected or not provided or not hmac.compare_digest(provided, expected):
+        await websocket.close(code=1008)
+        return False
+    return True
+
+
+@router.websocket("/realtime")
+async def realtime_websocket(websocket: WebSocket) -> None:
+    if not await _accept_or_close_realtime(websocket):
+        return
+    settings = load_settings()
+    model = websocket.query_params.get("model", "grok-voice-think-fast-1.0")
+    client_protocol = _xai_realtime_subprotocol(websocket.headers.get("sec-websocket-protocol"))
+    downstream_protocol = client_protocol or None
+    await websocket.accept(subprotocol=downstream_protocol)
+
+    upstream_protocol = client_protocol
+    if not upstream_protocol:
+        secret = await create_realtime_client_secret(settings, {"expires_after": {"seconds": 300}})
+        upstream_protocol = build_realtime_subprotocol(str(secret.get("value", "")))
+    if not upstream_protocol:
+        await websocket.close(code=1011)
+        return
+
+    headers = {
+        "Origin": settings.upstream_origin,
+        "User-Agent": settings.upstream_user_agent,
+    }
+    upstream_url = build_realtime_ws_url(model)
+
+    try:
+        async with websockets.connect(
+            upstream_url,
+            additional_headers=headers,
+            subprotocols=[upstream_protocol],
+            ping_interval=None,
+        ) as upstream:
+            async def client_to_upstream() -> None:
+                while True:
+                    message = await websocket.receive()
+                    if "text" in message:
+                        await upstream.send(prepare_realtime_client_message(message["text"]))
+                    elif "bytes" in message:
+                        await upstream.send(prepare_realtime_client_message(message["bytes"]))
+                    elif message.get("type") == "websocket.disconnect":
+                        await upstream.close()
+                        return
+
+            async def upstream_to_client() -> None:
+                async for message in upstream:
+                    if isinstance(message, bytes):
+                        await websocket.send_bytes(message)
+                    else:
+                        await websocket.send_text(str(message))
+
+            tasks = [
+                asyncio.create_task(client_to_upstream()),
+                asyncio.create_task(upstream_to_client()),
+            ]
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+            for task in done:
+                task.result()
+    except WebSocketDisconnect:
+        return
+    except Exception:
+        try:
+            await websocket.close(code=1011)
+        except RuntimeError:
+            pass
 
 
 @router.post("/responses", dependencies=[Depends(verify_openai_api_key)])

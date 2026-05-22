@@ -11,6 +11,7 @@ from curl_cffi import requests as crequests
 from ..adapters.responses import build_responses_payload
 from ..accounts import Account, AccountPool, is_retryable_status, record_account_result
 from ..config import Settings
+from .realtime import REALTIME_CLIENT_SECRET_URL
 
 
 _ACCOUNT_POOL_CACHE: dict[tuple[str, str, int | None, int | None], AccountPool] = {}
@@ -55,6 +56,20 @@ def _upstream_headers(settings: Settings, account: Account | None = None) -> dic
         headers["cookie"] = _account_cookie(settings, account)
     elif settings.cookie_header:
         headers["cookie"] = settings.cookie_header
+    return headers
+
+
+def _voice_referer(settings: Settings, account: Account) -> str:
+    if account.team_id:
+        return f"https://console.x.ai/team/{account.team_id}/voice/voice-agent"
+    if account.referer:
+        return account.referer.replace("/chat-playground", "/voice/voice-agent")
+    return settings.upstream_referer
+
+
+def _realtime_headers(settings: Settings, account: Account) -> dict[str, str]:
+    headers = _upstream_headers(settings, account)
+    headers["referer"] = _voice_referer(settings, account)
     return headers
 
 
@@ -187,6 +202,34 @@ async def create_response_json(settings: Settings, payload: dict[str, Any]) -> d
         return json.loads(resp.text)
     except ValueError as exc:
         raise UpstreamError("Upstream returned non-JSON response", details=resp.text[:800]) from exc
+
+
+async def create_realtime_client_secret(settings: Settings, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    kwargs = _session_kwargs(settings)
+    pool = _account_pool(settings)
+    account = pool.next_account()
+    body = payload if isinstance(payload, dict) else {"expires_after": {"seconds": 300}}
+    async with crequests.AsyncSession(**kwargs) as session:
+        try:
+            resp = await session.post(
+                REALTIME_CLIENT_SECRET_URL,
+                headers=_realtime_headers(settings, account),
+                data=json.dumps(body).encode("utf-8"),
+                timeout=min(settings.request_timeout_s, 30),
+            )
+        except Exception as exc:
+            _record_result(settings, account, status_code=None, error=str(exc))
+            raise UpstreamError(f"Realtime client secret network error: {exc}") from exc
+    try:
+        _raise_for_status(resp)
+    except UpstreamError as exc:
+        _record_result(settings, account, status_code=exc.status_code, error=exc.details or str(exc))
+        raise
+    _record_result(settings, account, status_code=resp.status_code)
+    try:
+        return json.loads(resp.text)
+    except ValueError as exc:
+        raise UpstreamError("Realtime client secret returned non-JSON response", details=resp.text[:800]) from exc
 
 
 async def stream_response_events(

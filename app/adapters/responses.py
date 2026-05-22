@@ -6,8 +6,8 @@ from typing import Any
 
 
 DEFAULT_TOOLS: list[dict[str, Any]] = [
-    {"type": "web_search"},
-    {"type": "x_search"},
+    {"type": "web_search", "enable_image_understanding": True},
+    {"type": "x_search", "enable_video_understanding": True},
 ]
 
 DEFAULT_INCLUDE = ["reasoning.encrypted_content"]

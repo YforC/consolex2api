@@ -14,6 +14,8 @@ from . import runtime_config
 
 DEFAULT_MODELS = (
     "grok-4.3",
+    "grok-build-0.1",
+    "grok-voice-think-fast-1.0",
     "grok-4.20-0309-non-reasoning",
     "grok-4.20-0309-reasoning",
     "grok-4.20-multi-agent-0309",
@@ -173,8 +175,7 @@ def collect_models_from_har(har_path: str) -> list[str]:
         if isinstance(model, str) and model.strip():
             models.add(model.strip())
 
-    if not models:
-        return list(DEFAULT_MODELS)
+    models.update(DEFAULT_MODELS)
     return sorted(models)
 
 
