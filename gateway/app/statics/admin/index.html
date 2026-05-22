@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ConsoleX Gateway Admin</title>
+  <link rel="stylesheet" href="/admin/assets/admin.css" />
+</head>
+<body>
+  <section id="loginView" class="login-view">
+    <div class="login-panel">
+      <div class="brand login-brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-copy">
+          <span class="brand-name">ConsoleX Gateway</span>
+          <span class="brand-sub">Admin access</span>
+        </span>
+      </div>
+      <div class="login-title">输入 Admin Key</div>
+      <div class="login-help">验证通过后进入网关管理界面。</div>
+      <input id="loginAdminKey" class="input login-input mono" type="password" placeholder="Admin Key" autocomplete="off" />
+      <button class="btn btn-primary login-btn" id="loginBtn" type="button">进入管理</button>
+    </div>
+  </section>
+
+  <div class="admin-shell hidden">
+    <aside class="admin-sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-copy">
+          <span class="brand-name">ConsoleX Gateway</span>
+          <span class="brand-sub">OpenAI compatible admin</span>
+        </span>
+      </div>
+      <nav class="admin-nav" aria-label="Admin navigation">
+        <button class="admin-nav-link active" type="button" data-tab="accounts">账号管理</button>
+        <button class="admin-nav-link" type="button" data-tab="settings">运行配置</button>
+      </nav>
+      <div class="sidebar-actions">
+        <button class="btn" id="refreshBtn" type="button">刷新</button>
+        <button class="btn btn-primary" id="openImportBtn" type="button">导入 TXT</button>
+        <button class="btn" id="exportTxtBtn" type="button">导出 TXT</button>
+        <button class="btn" id="exportJsonBtn" type="button">导出 JSON</button>
+        <button class="btn" id="logoutBtn" type="button">退出</button>
+      </div>
+    </aside>
+
+    <main class="admin-main">
+    <div class="content-head">
+      <div>
+        <div class="page-title">账号列表</div>
+        <div class="page-sub">使用 Admin Key 管理账号池、运行配置和批量操作。</div>
+      </div>
+      <div id="path" class="content-meta truncate">账号文件路径将在刷新后显示</div>
+    </div>
+
+    <section id="accountsView" class="view-panel" data-view="accounts">
+      <section class="stat-grid" aria-label="Account summary">
+        <div class="stat-cell">
+          <div class="stat-top"><div class="stat-label">当前账号数</div></div>
+          <div class="stat-value" id="count" data-stat="count">-</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-top"><div class="stat-label">可用账号</div></div>
+          <div class="stat-value" id="selectableCount">-</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-top"><div class="stat-label">异常账号</div></div>
+          <div class="stat-value" id="problemCount">-</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-top"><div class="stat-label">总调用 / 失败</div></div>
+          <div class="stat-value stat-small"><span id="totalUseCount">-</span> / <span id="totalFailCount">-</span></div>
+        </div>
+      </section>
+
+      <div class="toolbar">
+        <div class="toolbar-meta">
+          <span id="source" class="meta-pill">未刷新</span>
+          <span id="fallback" class="meta-pill">-</span>
+          <span id="failedCount" class="hidden">-</span>
+          <span id="tableMeta">等待刷新</span>
+        </div>
+        <div class="toolbar-actions">
+          <input id="accountSearch" class="input compact-input" type="search" placeholder="搜索名称 / Team / Referer / 错误" />
+          <select id="statusFilter" class="input compact-input">
+            <option value="">全部状态</option>
+            <option value="problem">异常账号</option>
+            <option value="active">active</option>
+            <option value="pending">pending</option>
+            <option value="disabled">disabled</option>
+            <option value="cooling">cooling</option>
+            <option value="invalid">invalid</option>
+            <option value="failed">failed</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="batch-bar" aria-label="Batch account actions">
+        <label class="select-all">
+          <input id="selectAllAccounts" type="checkbox" />
+          <span>全选</span>
+        </label>
+        <span id="selectedMeta" class="batch-meta">未选择账号</span>
+        <div class="batch-actions">
+          <button class="btn" id="disableSelectedBtn" type="button">禁用</button>
+          <button class="btn" id="enableSelectedBtn" type="button">启用</button>
+          <button class="btn" id="editSelectedBtn" type="button">编辑</button>
+          <button class="btn" id="refreshSelectedBtn" type="button">刷新状态</button>
+          <button class="btn hidden" id="cancelRefreshBtn" type="button">取消刷新</button>
+          <button class="btn btn-danger" id="deleteSelectedBtn" type="button">删除</button>
+        </div>
+      </div>
+
+      <section class="table-card">
+        <table aria-label="Accounts table">
+          <thead>
+            <tr>
+              <th class="select-col"></th>
+              <th>名称</th>
+              <th>SSO</th>
+              <th><button class="sort-th" type="button" data-sort="status">状态</button></th>
+              <th>Team</th>
+              <th>Referer</th>
+              <th><button class="sort-th" type="button" data-sort="fail_count">使用/失败</button></th>
+              <th><button class="sort-th" type="button" data-sort="last_checked_at">最近检查</button></th>
+              <th>错误信息</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="accountsTable">
+            <tr><td colspan="10"><div class="empty-state">填写 Admin Key 后点击刷新。</div></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="refreshJobPanel" class="job-panel hidden" aria-live="polite">
+        <div class="job-head">
+          <div>
+            <div class="job-title">刷新任务</div>
+            <div id="refreshJobSummary" class="job-summary">等待刷新</div>
+          </div>
+        </div>
+        <div id="refreshJobResults" class="job-results"></div>
+      </section>
+    </section>
+
+    <section id="settingsView" class="view-panel hidden" data-view="settings">
+      <section class="config-shell" aria-label="Gateway settings">
+        <div class="config-head">
+          <div>
+            <div class="settings-title">运行配置</div>
+            <div class="settings-help">保存到运行时配置文件；系统环境变量仍然拥有最高优先级。</div>
+          </div>
+          <button class="btn btn-primary" id="saveGatewayKeyBtn" type="button">保存配置</button>
+        </div>
+        <div class="settings-meta" id="gatewayKeyMeta">等待刷新</div>
+        <div id="configForm" class="config-form"></div>
+      </section>
+    </section>
+    </main>
+  </div>
+
+  <div id="status" class="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal-overlay" id="modal-import" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+      <div id="importTitle" class="modal-title">导入 SSO TXT</div>
+      <div class="modal-help">支持一行一个账号，格式为 <code>sso,teamid</code>；也兼容只有 sso 的旧行。</div>
+      <div class="field">
+        <label class="label" for="file">TXT 文件</label>
+        <input id="file" class="input" type="file" accept=".txt,text/plain" />
+      </div>
+      <div class="field">
+        <label class="label" for="txt">TXT 内容</label>
+        <textarea id="txt" class="textarea" placeholder="sso-token-1,team-id-1&#10;sso=token-2,team-id-2"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="clearBtn" type="button">清空</button>
+        <button class="btn" id="closeImportBtn" type="button">取消</button>
+        <button class="btn" id="addImportBtn" type="button">追加导入</button>
+        <button class="btn btn-primary" id="importBtn" type="button">导入并覆盖</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-edit-account" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editAccountTitle">
+      <div id="editAccountTitle" class="modal-title">编辑账号</div>
+      <div class="modal-help">SSO 留空表示保持原值；Team 修改后会重新生成该账号的 Referer。</div>
+      <input id="editAccountIndex" type="hidden" />
+      <div class="field">
+        <label class="label" for="editAccountSso">替换 SSO</label>
+        <input id="editAccountSso" class="input mono" type="password" placeholder="留空不修改" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label class="label" for="editAccountTeam">Team ID</label>
+        <input id="editAccountTeam" class="input mono" type="text" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label class="label" for="editAccountStatus">状态</label>
+        <select id="editAccountStatus" class="input">
+          <option value="active">active</option>
+          <option value="pending">pending</option>
+          <option value="disabled">disabled</option>
+          <option value="cooling">cooling</option>
+          <option value="invalid">invalid</option>
+          <option value="failed">failed</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="closeEditAccountBtn" type="button">取消</button>
+        <button class="btn btn-primary" id="saveEditAccountBtn" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-account-detail" aria-hidden="true">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="accountDetailTitle">
+      <div id="accountDetailTitle" class="modal-title">账号详情</div>
+      <div id="accountDetailBody" class="detail-grid"></div>
+      <div class="modal-actions">
+        <button class="btn" id="closeAccountDetailBtn" type="button">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/admin/assets/admin.js"></script>
+</body>
+</html>

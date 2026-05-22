@@ -1,0 +1,14 @@
+{
+  "upstream_url": "https://console.x.ai/v1/responses",
+  "origin": "https://console.x.ai",
+  "referer": "",
+  "x_cluster": "https://us-east-1.api.x.ai",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+  "models": [
+    "grok-4.20-0309-non-reasoning",
+    "grok-4.20-0309-reasoning",
+    "grok-4.20-multi-agent-0309",
+    "grok-4.3"
+  ],
+  "sample_count": 4
+}

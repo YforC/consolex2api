@@ -1,0 +1,14 @@
+services:
+  consolex-gateway:
+    build: .
+    container_name: consolex-gateway
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file:
+      - ./gateway/.env
+    environment:
+      ACCOUNTS_DB: /app/gateway/data/accounts.sqlite3
+      UPSTREAM_PROXY: ""
+    volumes:
+      - ./gateway/data:/app/gateway/data

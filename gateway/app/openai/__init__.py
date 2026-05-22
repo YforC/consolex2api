@@ -1,0 +1,2 @@
+"""OpenAI route package."""
+

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "account-1",
+    "sso": "paste-sso-token-here",
+    "team_id": "team-id-1"
+  },
+  {
+    "name": "account-2",
+    "sso": "paste-another-sso-token-here",
+    "team_id": "team-id-2"
+  }
+]
