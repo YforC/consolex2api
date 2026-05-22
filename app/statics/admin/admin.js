@@ -54,6 +54,8 @@ const CONFIG_KEY_HINTS = {
   'upstream.referer': '只作为没有 team_id 的账号兜底；正常不要写固定 team URL。',
   'upstream.cf_cookies': 'Cloudflare 相关 cookie；不要把 sso 放在这里。',
   'models.ids': '一行一个模型 ID；留空时从 HAR 或默认列表读取。',
+  'generation.tools_enabled': '开启时保留用户 tools/tool_choice，未传 tools 时使用网关默认搜索工具；关闭时强制禁用 tools。',
+  'generation.reasoning_effort': '请求没有 reasoning/reasoning_effort 时才使用这里的默认值。',
 };
 
 function setStatus(message, isError=false) {
@@ -316,6 +318,17 @@ function renderConfigForm(settings) {
         input.className = 'textarea config-input';
         input.rows = field.type === 'list' ? 4 : 3;
         input.value = fieldValue(settings, field.key);
+      } else if (field.type === 'select') {
+        input = document.createElement('select');
+        input.className = 'input config-input';
+        const currentValue = String(fieldValue(settings, field.key) ?? '');
+        for (const optionDef of field.options || []) {
+          const option = document.createElement('option');
+          option.value = String(optionDef.value ?? '');
+          option.textContent = optionDef.label || option.value || '空';
+          option.selected = option.value === currentValue;
+          input.appendChild(option);
+        }
       } else if (field.type === 'bool') {
         input = document.createElement('input');
         input.className = 'config-checkbox';
@@ -369,6 +382,7 @@ async function saveGatewayKey() {
     if (type === 'bool') values[key] = input.checked;
     else if (type === 'number') values[key] = input.value === '' ? 0 : Number(input.value);
     else if (type === 'list') values[key] = input.value.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
+    else if (type === 'select') values[key] = input.value;
     else values[key] = input.value;
   });
   const res = await fetch('/admin/api/settings', {

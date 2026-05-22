@@ -927,6 +927,102 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIn("sso=token", captured["headers"]["cookie"])
         self.assertIn("last-team-id=team-a", captured["headers"]["cookie"])
 
+    def test_responses_payload_can_disable_tools(self):
+        from app.adapters.responses import build_responses_payload
+
+        payload = build_responses_payload(
+            model="grok-4.3",
+            input_val="hello",
+            instructions=None,
+            stream=False,
+            temperature=0.7,
+            top_p=0.95,
+            max_output_tokens=None,
+            tools=[{"type": "web_search"}],
+            tool_choice="auto",
+            tools_enabled=False,
+        )
+
+        self.assertEqual(payload["tools"], [])
+        self.assertEqual(payload["tool_choice"], "none")
+
+    def test_chat_route_uses_default_reasoning_effort_when_request_omits_it(self):
+        from app.config import Settings
+        from app.openai.routes import ChatCompletionRequest
+        from app.openai.routes import _chat_request_payload
+
+        settings = Settings(
+            host="0.0.0.0",
+            port=8787,
+            openai_api_key="k",
+            upstream_url="https://console.x.ai/v1/responses",
+            upstream_cookie="",
+            upstream_sso="token",
+            upstream_cluster="https://us-east-1.api.x.ai",
+            upstream_referer="",
+            upstream_origin="https://console.x.ai",
+            upstream_user_agent="ua",
+            upstream_proxy="",
+            upstream_impersonate="chrome136",
+            upstream_skip_ssl_verify=False,
+            upstream_cf_cookies="",
+            upstream_cf_clearance="",
+            accounts_file="",
+            default_temperature=0.7,
+            default_top_p=0.95,
+            request_timeout_s=120.0,
+            model_list=["grok-4.3"],
+            tools_enabled=True,
+            default_reasoning_effort="high",
+        )
+        req = ChatCompletionRequest(
+            model="grok-4.3",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+        payload = _chat_request_payload(req, settings)
+
+        self.assertEqual(payload["reasoning"], {"effort": "high"})
+
+    def test_chat_route_request_reasoning_effort_overrides_default(self):
+        from app.config import Settings
+        from app.openai.routes import ChatCompletionRequest
+        from app.openai.routes import _chat_request_payload
+
+        settings = Settings(
+            host="0.0.0.0",
+            port=8787,
+            openai_api_key="k",
+            upstream_url="https://console.x.ai/v1/responses",
+            upstream_cookie="",
+            upstream_sso="token",
+            upstream_cluster="https://us-east-1.api.x.ai",
+            upstream_referer="",
+            upstream_origin="https://console.x.ai",
+            upstream_user_agent="ua",
+            upstream_proxy="",
+            upstream_impersonate="chrome136",
+            upstream_skip_ssl_verify=False,
+            upstream_cf_cookies="",
+            upstream_cf_clearance="",
+            accounts_file="",
+            default_temperature=0.7,
+            default_top_p=0.95,
+            request_timeout_s=120.0,
+            model_list=["grok-4.3"],
+            tools_enabled=True,
+            default_reasoning_effort="high",
+        )
+        req = ChatCompletionRequest(
+            model="grok-4.3",
+            messages=[{"role": "user", "content": "hi"}],
+            reasoning_effort="low",
+        )
+
+        payload = _chat_request_payload(req, settings)
+
+        self.assertEqual(payload["reasoning"], {"effort": "low"})
+
     def test_realtime_route_accepts_client_secret_payload(self):
         from fastapi.testclient import TestClient
         from app.main import app
@@ -1498,6 +1594,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIn("upstream.cf_cookies", field_keys)
         self.assertIn("models.ids", field_keys)
         self.assertIn("chat.timeout", field_keys)
+        self.assertIn("generation.tools_enabled", field_keys)
+        self.assertIn("generation.reasoning_effort", field_keys)
 
     def test_admin_settings_masks_secret_values(self):
         from app.admin.routes import _load_gateway_settings_summary
@@ -1577,7 +1675,7 @@ class GatewayCoreTests(unittest.TestCase):
                 '\n[upstream]\nproxy = ""\ncf_cookies = ""\n'
                 '\n[models]\nids = []\n'
                 '\n[chat]\ntimeout = 120\n'
-                '\n[generation]\ntemperature = 0.7\ntop_p = 0.95\n',
+                '\n[generation]\ntemperature = 0.7\ntop_p = 0.95\ntools_enabled = true\nreasoning_effort = ""\n',
                 encoding="utf-8",
             )
             runtime.write_text("", encoding="utf-8")
@@ -1604,6 +1702,8 @@ class GatewayCoreTests(unittest.TestCase):
                         "models.ids": ["grok-4.3", "grok-4.20-auto"],
                         "chat.timeout": 240,
                         "generation.temperature": 0.2,
+                        "generation.tools_enabled": False,
+                        "generation.reasoning_effort": "high",
                     }
                 }))
                 saved_runtime = load_runtime_config(defaults_path=defaults, runtime_path=runtime)
@@ -1620,6 +1720,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved_runtime["models"]["ids"], ["grok-4.3", "grok-4.20-auto"])
         self.assertEqual(saved_runtime["chat"]["timeout"], 240)
         self.assertEqual(saved_runtime["generation"]["temperature"], 0.2)
+        self.assertEqual(saved_runtime["generation"]["tools_enabled"], False)
+        self.assertEqual(saved_runtime["generation"]["reasoning_effort"], "high")
 
     def test_load_settings_reads_admin_key(self):
         from app.config import load_settings

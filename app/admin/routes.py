@@ -184,6 +184,8 @@ def _load_gateway_settings_summary() -> dict[str, Any]:
         "chat.timeout": settings.request_timeout_s,
         "generation.temperature": settings.default_temperature,
         "generation.top_p": settings.default_top_p,
+        "generation.tools_enabled": settings.tools_enabled,
+        "generation.reasoning_effort": settings.default_reasoning_effort,
     }
     masked_values = {
         "app.openai_api_key": mask_secret(settings.openai_api_key),
@@ -207,6 +209,8 @@ def _load_gateway_settings_summary() -> dict[str, Any]:
             "upstream.cf_clearance": setting_source("UPSTREAM_CF_CLEARANCE", "upstream.cf_clearance"),
             "models.ids": setting_source("GATEWAY_MODELS", "models.ids"),
             "chat.timeout": setting_source("REQUEST_TIMEOUT_S", "chat.timeout"),
+            "generation.tools_enabled": setting_source("GATEWAY_TOOLS_ENABLED", "generation.tools_enabled"),
+            "generation.reasoning_effort": setting_source("DEFAULT_REASONING_EFFORT", "generation.reasoning_effort"),
         },
         "fields": _settings_fields(),
     }
@@ -246,6 +250,18 @@ def _settings_fields() -> list[dict[str, Any]]:
                 {"key": "chat.timeout", "label": "请求超时秒数", "type": "number"},
                 {"key": "generation.temperature", "label": "默认 Temperature", "type": "number"},
                 {"key": "generation.top_p", "label": "默认 Top P", "type": "number"},
+                {"key": "generation.tools_enabled", "label": "Tools 透传/默认工具", "type": "bool"},
+                {
+                    "key": "generation.reasoning_effort",
+                    "label": "默认思考强度",
+                    "type": "select",
+                    "options": [
+                        {"value": "", "label": "不默认发送"},
+                        {"value": "low", "label": "low"},
+                        {"value": "medium", "label": "medium"},
+                        {"value": "high", "label": "high"},
+                    ],
+                },
             ],
         },
     ]
@@ -266,10 +282,15 @@ def _coerce_setting_value(key: str, value: Any) -> Any:
         return [part.strip() for part in str(value or "").splitlines() if part.strip()]
     if key in {"chat.timeout", "generation.temperature", "generation.top_p"}:
         return float(value)
-    if key == "upstream.skip_ssl_verify":
+    if key in {"upstream.skip_ssl_verify", "generation.tools_enabled"}:
         if isinstance(value, bool):
             return value
         return str(value).strip().lower() in {"1", "true", "yes", "on"}
+    if key == "generation.reasoning_effort":
+        value = str(value or "").strip()
+        if value not in {"", "low", "medium", "high"}:
+            raise HTTPException(status_code=400, detail="Unsupported reasoning effort.")
+        return value
     return str(value or "").strip()
 
 

@@ -202,6 +202,8 @@ class Settings:
     request_timeout_s: float
     model_list: list[str]
     admin_key: str = ""
+    tools_enabled: bool = True
+    default_reasoning_effort: str = ""
 
     @property
     def cookie_header(self) -> str:
@@ -262,6 +264,11 @@ def load_settings() -> Settings:
 
     skip_ssl_raw = str(_runtime_setting("UPSTREAM_SKIP_SSL_VERIFY", "upstream.skip_ssl_verify", "")).strip().lower()
     skip_ssl = skip_ssl_raw in {"1", "true", "yes", "on"}
+    tools_enabled_raw = str(_runtime_setting("GATEWAY_TOOLS_ENABLED", "generation.tools_enabled", "true")).strip().lower()
+    tools_enabled = tools_enabled_raw not in {"0", "false", "no", "off"}
+    default_reasoning_effort = str(
+        _runtime_setting("DEFAULT_REASONING_EFFORT", "generation.reasoning_effort", "")
+    ).strip()
 
     upstream_cf_cookies = (
         str(_runtime_setting("UPSTREAM_CF_COOKIES", "upstream.cf_cookies", "")).strip()
@@ -303,6 +310,8 @@ def load_settings() -> Settings:
         request_timeout_s=float(_runtime_setting("REQUEST_TIMEOUT_S", "chat.timeout", "120")),
         model_list=model_list,
         admin_key=str(_runtime_setting("ADMIN_KEY", "app.admin_key", "")).strip(),
+        tools_enabled=tools_enabled,
+        default_reasoning_effort=default_reasoning_effort,
     )
 
 

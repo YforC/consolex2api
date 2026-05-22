@@ -27,15 +27,23 @@ def build_responses_payload(
     reasoning: dict[str, Any] | None = None,
     include: list[str] | None = None,
     store: bool | None = None,
+    tools_enabled: bool = True,
 ) -> dict[str, Any]:
+    if tools_enabled:
+        payload_tools = DEFAULT_TOOLS if tools is None else tools
+        payload_tool_choice = "auto" if tool_choice is None else tool_choice
+    else:
+        payload_tools = []
+        payload_tool_choice = "none"
+
     payload: dict[str, Any] = {
         "model": model,
         "input": input_val,
         "stream": stream,
         "store": False if store is None else store,
         "include": DEFAULT_INCLUDE if include is None else include,
-        "tools": DEFAULT_TOOLS if tools is None else tools,
-        "tool_choice": "auto" if tool_choice is None else tool_choice,
+        "tools": payload_tools,
+        "tool_choice": payload_tool_choice,
     }
     if instructions is not None:
         payload["instructions"] = instructions

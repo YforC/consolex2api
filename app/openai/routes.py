@@ -20,7 +20,7 @@ from ..adapters.chat_completions import (
 from ..adapters.responses import build_responses_payload
 from ..adapters.sse import chat_error_stream, responses_async_stream_to_chat_stream
 from ..auth import verify_openai_api_key
-from ..config import load_settings, model_object
+from ..config import Settings, load_settings, model_object
 from ..auth import extract_bearer_token
 from ..upstream.realtime import build_realtime_subprotocol, build_realtime_ws_url, prepare_realtime_client_message
 from ..upstream.xai_client import (
@@ -65,6 +65,51 @@ class ResponsesRequest(BaseModel):
     reasoning: dict[str, Any] | None = None
     include: list[str] | None = None
     store: bool | None = None
+
+
+def _reasoning_from_effort(effort: str | None) -> dict[str, Any] | None:
+    value = str(effort or "").strip()
+    return {"effort": value} if value else None
+
+
+def _responses_request_payload(req: ResponsesRequest, settings: Settings) -> dict[str, Any]:
+    is_stream = bool(req.stream)
+    return build_responses_payload(
+        model=req.model,
+        input_val=req.input,
+        instructions=req.instructions,
+        stream=is_stream,
+        temperature=req.temperature if req.temperature is not None else settings.default_temperature,
+        top_p=req.top_p if req.top_p is not None else settings.default_top_p,
+        max_output_tokens=req.max_output_tokens,
+        tools=req.tools,
+        tool_choice=req.tool_choice,
+        reasoning=req.reasoning
+        if req.reasoning is not None
+        else _reasoning_from_effort(settings.default_reasoning_effort),
+        include=req.include,
+        store=req.store,
+        tools_enabled=settings.tools_enabled,
+    )
+
+
+def _chat_request_payload(req: ChatCompletionRequest, settings: Settings) -> dict[str, Any]:
+    is_stream = bool(req.stream)
+    response_input = chat_messages_to_responses_input(req.messages)
+    reasoning_effort = req.reasoning_effort or settings.default_reasoning_effort
+    return build_responses_payload(
+        model=req.model,
+        input_val=response_input,
+        instructions=None,
+        stream=is_stream,
+        temperature=req.temperature if req.temperature is not None else settings.default_temperature,
+        top_p=req.top_p if req.top_p is not None else settings.default_top_p,
+        max_output_tokens=req.max_tokens,
+        tools=req.tools,
+        tool_choice=req.tool_choice,
+        reasoning=_reasoning_from_effort(reasoning_effort),
+        tools_enabled=settings.tools_enabled,
+    )
 
 
 @router.get("/models", dependencies=[Depends(verify_openai_api_key)])
@@ -182,20 +227,7 @@ async def responses_create(req: ResponsesRequest):
         raise HTTPException(status_code=500, detail="UPSTREAM_COOKIE or UPSTREAM_SSO is required.")
 
     is_stream = bool(req.stream)
-    payload = build_responses_payload(
-        model=req.model,
-        input_val=req.input,
-        instructions=req.instructions,
-        stream=is_stream,
-        temperature=req.temperature if req.temperature is not None else settings.default_temperature,
-        top_p=req.top_p if req.top_p is not None else settings.default_top_p,
-        max_output_tokens=req.max_output_tokens,
-        tools=req.tools,
-        tool_choice=req.tool_choice,
-        reasoning=req.reasoning,
-        include=req.include,
-        store=req.store,
-    )
+    payload = _responses_request_payload(req, settings)
     if not is_stream:
         try:
             data = await create_response_json(settings, payload)
@@ -223,19 +255,7 @@ async def chat_completions(req: ChatCompletionRequest):
         raise HTTPException(status_code=500, detail="UPSTREAM_COOKIE or UPSTREAM_SSO is required.")
 
     is_stream = bool(req.stream)
-    response_input = chat_messages_to_responses_input(req.messages)
-    payload = build_responses_payload(
-        model=req.model,
-        input_val=response_input,
-        instructions=None,
-        stream=is_stream,
-        temperature=req.temperature if req.temperature is not None else settings.default_temperature,
-        top_p=req.top_p if req.top_p is not None else settings.default_top_p,
-        max_output_tokens=req.max_tokens,
-        tools=req.tools,
-        tool_choice=req.tool_choice,
-        reasoning={"effort": req.reasoning_effort} if req.reasoning_effort else None,
-    )
+    payload = _chat_request_payload(req, settings)
 
     if not is_stream:
         try:

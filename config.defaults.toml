@@ -21,6 +21,8 @@ cf_clearance = ""
 [generation]
 temperature = 0.7
 top_p = 0.95
+tools_enabled = true
+reasoning_effort = ""
 
 [chat]
 timeout = 120
