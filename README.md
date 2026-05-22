@@ -1,21 +1,23 @@
 # ConsoleX2API
 
 <p align="center">
-  <b>将 console.x.ai 转换为 OpenAI 兼容接口的轻量网关</b>
+  <b>将 console.x.ai 封装为 OpenAI 兼容接口的轻量级网关</b>
 </p>
 
 <p align="center">
-  <a href="#功能特性">功能特性</a> ·
+  <a href="#功能概览">功能概览</a> ·
   <a href="#快速开始">快速开始</a> ·
-  <a href="#接口说明">接口说明</a> ·
   <a href="#管理后台">管理后台</a> ·
-  <a href="#docker-compose-部署">Docker 部署</a>
+  <a href="#接口说明">接口说明</a> ·
+  <a href="#docker-compose-部署">Docker 部署</a> ·
+  <a href="#常见问题">常见问题</a>
 </p>
 
 <p align="center">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-OpenAI%20Compatible-009688?style=flat-square&logo=fastapi&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/Storage-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white">
+  <img alt="Realtime-Voice" src="https://img.shields.io/badge/Realtime-Voice-111827?style=flat-square">
   <img alt="Docker" src="https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white">
 </p>
 
@@ -23,75 +25,55 @@
 
 ## 项目简介
 
-ConsoleX2API 是一个面向 `console.x.ai` 的 OpenAI 兼容网关。它把上游 `console.x.ai/v1/responses`、Realtime Voice 等能力包装为常见的 OpenAI 风格接口，方便接入现有客户端、脚本和代理工具。
+ConsoleX2API 是一个面向 `console.x.ai` 的 OpenAI 兼容网关。它将上游 `console.x.ai/v1/responses`、Realtime Voice 等能力包装为常见的 OpenAI 风格接口，让现有客户端、脚本、代理工具可以按熟悉的方式接入。
 
-项目目标很明确：
+它重点解决四件事：
 
-- 让客户端按 OpenAI API 习惯调用 Grok/console.x.ai。
-- 支持多账号 SSO 池、自动轮换、失败记录和后台管理。
-- 保留请求里的 `tools`、`tool_choice`、`reasoning`、`reasoning_effort` 等关键参数。
-- 不把 `team_id` 写死在 `.env`，每个账号独立携带自己的 `team_id`。
+- 使用 OpenAI API 习惯调用 console.x.ai。
+- 使用 SQLite 管理多账号 SSO 池，每个账号独立保存 `team_id`。
+- 提供独立 Admin Key 管理后台，支持账号、配置、批量刷新和状态筛选。
+- 保留请求中的 `tools`、`tool_choice`、`reasoning`、`reasoning_effort` 等关键参数。
 
-> 注意：本项目当前不提供 `/v1/images/*`、`/v1/videos/*` 生成/编辑接口。图像相关能力指的是 Chat/Responses 请求中的图像输入。
+> 本项目当前不提供 `/v1/images/*`、`/v1/videos/*` 生成或编辑接口。图像相关能力指 Chat/Responses 请求中的图像输入。
 
-## 功能特性
+## 功能概览
 
-### OpenAI 兼容接口
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| OpenAI Models | 已支持 | `GET /v1/models` |
+| Chat Completions | 已支持 | `POST /v1/chat/completions`，支持流式和非流式 |
+| Responses | 已支持 | `POST /v1/responses` |
+| 图像输入 | 已支持 | Chat `image_url` 自动转换为 Responses `input_image` |
+| Tools 透传 | 已支持 | 用户自带 `tools`、`tool_choice` 不被强行改写 |
+| Thinking 参数 | 已支持 | 保留 `reasoning`、`reasoning_effort` |
+| Realtime Voice | 已支持 | client secret + WebSocket 双向透传 |
+| SQLite 账号池 | 已支持 | 多 SSO、多 team、多状态管理 |
+| 管理后台 | 已支持 | 独立登录页、白灰左侧栏、配置和账号管理 |
+| Docker Compose | 已支持 | 数据库持久化到 `./data/accounts.sqlite3` |
 
-- `GET /v1/models`
-- `POST /v1/chat/completions`
-- `POST /v1/responses`
-- `POST /v1/realtime/client_secrets`
-- `WS /v1/realtime?model=grok-voice-think-fast-1.0`
-
-### 请求能力
-
-- 支持流式和非流式输出。
-- 支持 Chat Completions 的 `image_url`，会转换为 Responses `input_image`。
-- 默认搜索工具对齐当前 HAR：
-  - `web_search.enable_image_understanding = true`
-  - `x_search.enable_video_understanding = true`
-- 用户自带的 `tools`、`tool_choice` 完全原样保留，不强行改写。
-- 支持 `reasoning_effort` 和 Responses `reasoning` 参数。
-
-### 账号池
-
-- SQLite 持久化账号。
-- TXT 批量导入，格式为一行一个账号：
+## 工作方式
 
 ```txt
-sso-token-1,team-id-1
-sso=token-2,team-id-2
+OpenAI Client
+    |
+    |  /v1/models
+    |  /v1/chat/completions
+    |  /v1/responses
+    |  /v1/realtime
+    v
+ConsoleX2API Gateway
+    |
+    |  账号选择、请求转换、SSE 包装、错误包装
+    |  tools / reasoning 参数保留
+    v
+console.x.ai upstream
 ```
 
-- 导入账号自动命名为 `1`、`2`、`3`。
-- 新导入账号默认 `active`。
-- 每个账号独立生成自己的 Referer：
+账号池不依赖全局固定 team。每个账号导入时都带自己的 `team_id`，网关会按账号生成对应 Referer：
 
 ```txt
 https://console.x.ai/team/<team_id>/chat-playground
 ```
-
-### 管理后台
-
-- 独立 Admin Key 登录页。
-- 左侧栏白灰简约管理界面。
-- 账号导入、追加、编辑、启用、禁用、删除。
-- 批量刷新账号状态，显示实时刷新结果。
-- 异常账号筛选、状态/失败数/检查时间排序。
-- 运行配置页面支持 API Key、Admin Key、代理、Cloudflare、模型列表等配置。
-- 敏感配置只显示掩码，空密码字段不会覆盖旧值。
-
-### Realtime Voice
-
-- 代理 `/v1/realtime/client_secrets`。
-- WebSocket 双向透传 x.ai Realtime 协议。
-- 原样保留：
-  - `session.update`
-  - `conversation.item.create`
-  - `response.create`
-  - `response.cancel`
-  - `input_audio_buffer.append`
 
 ## 快速开始
 
@@ -104,13 +86,11 @@ python -m pip install fastapi uvicorn curl_cffi pydantic websockets
 
 ### 2. 准备配置
 
-复制示例配置：
-
 ```powershell
 Copy-Item .env.example .env
 ```
 
-编辑 `.env`，至少配置：
+编辑 `.env`，至少设置：
 
 ```env
 OPENAI_API_KEY=replace-with-your-gateway-key
@@ -119,11 +99,13 @@ ACCOUNTS_DB=accounts.sqlite3
 UPSTREAM_PROXY=http://127.0.0.1:7899
 ```
 
-如果部署在海外服务器，通常不需要代理：
+如果部署在海外服务器，通常可以关闭代理：
 
 ```env
 UPSTREAM_PROXY=
 ```
+
+不要在 `.env` 中写死某一个账号的 team。账号的 `team_id` 应该通过管理后台或 TXT 导入进入 SQLite。
 
 ### 3. 启动服务
 
@@ -134,28 +116,68 @@ cd D:\Desktop\consolex
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
 ```
 
-或：
+也可以使用模块入口：
 
 ```powershell
 python -m app
 ```
 
-### 4. 打开管理后台
+### 4. 打开后台
 
 ```txt
 http://127.0.0.1:8787/admin
 ```
 
-进入时输入 `ADMIN_KEY`。
+进入后台时输入 `.env` 中的 `ADMIN_KEY`。
 
-## API Key 说明
+## 账号导入
 
-项目里有两个 key，作用不同：
+TXT 格式是一行一个账号：
+
+```txt
+sso-token-1,team-id-1
+sso-token-2,team-id-2
+sso=token-3,team-id-3
+```
+
+导入规则：
+
+- TXT 不需要 name 字段。
+- 账号名自动按顺序生成：`1`、`2`、`3`。
+- 新导入账号默认状态为 `active`。
+- 每个账号必须使用自己的 `team_id`。
+- 不要把所有账号绑定到同一个全局 `UPSTREAM_REFERER`。
+
+## 管理后台
+
+后台地址：
+
+```txt
+http://127.0.0.1:8787/admin
+```
+
+后台使用独立 Admin Key 登录，不与 `/v1/*` API Key 混用。
+
+| 模块 | 功能 |
+| --- | --- |
+| 登录页 | 进入后台前输入 `ADMIN_KEY` |
+| 账号管理 | 导入、追加、编辑、启用、禁用、删除 |
+| 批量刷新 | SSE 实时显示每个账号刷新结果 |
+| 状态筛选 | active、disabled、cooling、invalid、failed、异常账号 |
+| 排序查看 | 按状态、失败次数、检查时间等字段查看 |
+| 运行配置 | API Key、Admin Key、代理、Cloudflare、模型列表 |
+| 安全展示 | 密钥脱敏显示，空密钥不会覆盖旧值 |
+
+## 接口说明
+
+### 鉴权
+
+项目里有两个 key：
 
 | 配置 | 用途 |
 | --- | --- |
-| `OPENAI_API_KEY` | 调用 `/v1/*` 接口使用 |
-| `ADMIN_KEY` | 登录 `/admin` 管理后台使用 |
+| `OPENAI_API_KEY` | 调用 `/v1/*` 接口 |
+| `ADMIN_KEY` | 登录 `/admin` 管理后台 |
 
 请求 `/v1/models`、`/v1/chat/completions`、`/v1/responses` 时必须使用 `OPENAI_API_KEY`：
 
@@ -164,9 +186,7 @@ curl http://127.0.0.1:8787/v1/models `
   -H "Authorization: Bearer replace-with-your-gateway-key"
 ```
 
-如果用 `ADMIN_KEY` 调 `/v1/models`，会返回 `403 Forbidden`，这是正常行为。
-
-## 接口说明
+使用 `ADMIN_KEY` 调用 `/v1/models` 会返回 `403 Forbidden`，这是正常行为。
 
 ### 模型列表
 
@@ -252,7 +272,7 @@ curl http://127.0.0.1:8787/v1/responses \
 
 ### Realtime Voice
 
-先获取 client secret：
+获取 client secret：
 
 ```bash
 curl http://127.0.0.1:8787/v1/realtime/client_secrets \
@@ -261,7 +281,7 @@ curl http://127.0.0.1:8787/v1/realtime/client_secrets \
   -d '{"expires_after":{"seconds":300}}'
 ```
 
-再连接 WebSocket：
+连接 WebSocket：
 
 ```txt
 ws://127.0.0.1:8787/v1/realtime?model=grok-voice-think-fast-1.0
@@ -272,57 +292,46 @@ WebSocket 支持两种鉴权方式：
 - Header：`Authorization: Bearer <OPENAI_API_KEY>`
 - Query：`?api_key=<OPENAI_API_KEY>`
 
-## 管理后台
+网关会双向透传 Realtime 帧，包括：
 
-后台地址：
-
-```txt
-http://127.0.0.1:8787/admin
-```
-
-后台能力：
-
-| 模块 | 功能 |
-| --- | --- |
-| 账号管理 | 导入、追加、编辑、启用、禁用、删除 |
-| 批量刷新 | SSE 实时显示每个账号刷新结果 |
-| 状态筛选 | active、disabled、cooling、invalid、failed、异常账号 |
-| 运行配置 | API Key、Admin Key、代理、Cloudflare、模型列表 |
-| 安全处理 | 密钥脱敏展示，空密钥不覆盖旧值 |
-
-TXT 导入格式：
-
-```txt
-sso-token-1,team-id-1
-sso-token-2,team-id-2
-```
-
-不要只使用一个全局 `team_id`。每个账号应独立携带自己的 `team_id`。
+- `session.update`
+- `conversation.item.create`
+- `response.create`
+- `response.cancel`
+- `input_audio_buffer.append`
 
 ## Docker Compose 部署
 
-### 1. 配置环境变量
+### 1. 准备配置
 
 ```bash
 cp .env.example .env
 ```
 
-### 2. 启动
+根据部署环境修改 `.env`：
+
+```env
+OPENAI_API_KEY=replace-with-your-gateway-key
+ADMIN_KEY=replace-with-your-admin-key
+UPSTREAM_PROXY=
+```
+
+### 2. 启动服务
 
 ```bash
 docker compose up -d --build
-```
-
-Compose 默认会把账号数据库持久化到：
-
-```txt
-./data/accounts.sqlite3
 ```
 
 ### 3. 查看日志
 
 ```bash
 docker compose logs -f
+```
+
+Compose 默认将账号数据库持久化到：
+
+```txt
+./data/accounts.sqlite3
 ```
 
 ## 配置项
@@ -333,15 +342,20 @@ docker compose logs -f
 | `ADMIN_KEY` | 建议 | `/admin` 登录密钥 |
 | `ACCOUNTS_DB` | 否 | SQLite 账号库路径 |
 | `UPSTREAM_SSO` | 否 | 单账号兜底，不推荐长期使用 |
+| `UPSTREAM_COOKIE` | 否 | 上游 Cookie 兜底 |
 | `UPSTREAM_CF_COOKIES` | 否 | Cloudflare 相关 cookies |
 | `UPSTREAM_CF_CLEARANCE` | 否 | 单独的 `cf_clearance` |
 | `UPSTREAM_URL` | 否 | 默认 `https://console.x.ai/v1/responses` |
 | `UPSTREAM_X_CLUSTER` | 否 | 默认 `https://us-east-1.api.x.ai` |
+| `UPSTREAM_ORIGIN` | 否 | 默认 `https://console.x.ai` |
 | `UPSTREAM_REFERER` | 否 | 只作为无 `team_id` 时的兜底 |
+| `UPSTREAM_USER_AGENT` | 否 | 上游请求 User-Agent |
 | `UPSTREAM_PROXY` | 否 | 本地代理，例如 `http://127.0.0.1:7899` |
 | `UPSTREAM_IMPERSONATE` | 否 | `curl_cffi` 浏览器指纹 |
+| `UPSTREAM_SKIP_SSL_VERIFY` | 否 | 是否跳过 SSL 验证 |
 | `REQUEST_TIMEOUT_S` | 否 | 上游请求超时时间 |
 | `GATEWAY_MODELS` | 否 | 自定义模型列表 |
+| `HAR_FILE_PATH` | 否 | 可选 HAR 模型解析来源 |
 
 运行时配置也可以由后台写入 `config.toml`。系统环境变量优先级最高。
 
@@ -349,7 +363,7 @@ docker compose logs -f
 
 ### `No module named 'app'`
 
-你不在项目根目录启动。请进入包含 `app/` 的目录：
+启动目录不对。请进入包含 `app/` 的项目根目录：
 
 ```powershell
 cd D:\Desktop\consolex
@@ -358,7 +372,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
 
 ### `/v1/models` 返回 `403 Forbidden`
 
-你大概率用了 `ADMIN_KEY`。`/v1/*` 接口必须使用 `OPENAI_API_KEY`。
+通常是把 `ADMIN_KEY` 当成 API Key 使用了。`/v1/*` 接口必须使用 `OPENAI_API_KEY`。
 
 ```powershell
 curl http://127.0.0.1:8787/v1/models `
@@ -374,7 +388,7 @@ GATEWAY_MODELS=
 HAR_FILE_PATH=
 ```
 
-如果 `GATEWAY_MODELS` 不为空，会覆盖默认模型列表。清空后重启服务即可使用默认模型列表。
+如果 `GATEWAY_MODELS` 不为空，它会覆盖默认模型列表。清空后重启服务即可使用默认模型列表。
 
 ### 管理后台能进，但 API 调不通
 
@@ -382,13 +396,13 @@ HAR_FILE_PATH=
 
 ### 账号导入后请求失败
 
-检查 TXT 是否是一行一个账号：
+先确认 TXT 是否是一行一个账号：
 
 ```txt
 sso,teamid
 ```
 
-不要把所有账号都绑定到同一个全局 `UPSTREAM_REFERER`。
+再确认账号不是共用同一个 team，并且没有把 `team_id` 写死到全局 `UPSTREAM_REFERER`。
 
 ## 开发与测试
 
@@ -410,7 +424,8 @@ python -m py_compile app/accounts.py app/admin/routes.py app/upstream/xai_client
 - `OPENAI_API_KEY` 和 `ADMIN_KEY` 建议使用不同值。
 - 生产环境建议只开放必要端口，并使用反向代理加 TLS。
 - `UPSTREAM_CF_CLEARANCE`、SSO、账号数据库都属于敏感数据。
+- 如果部署到公网，建议在反向代理层增加访问控制和请求日志。
 
-## 许可证
+## 免责声明
 
-请根据你的实际发布策略补充许可证信息。
+本项目仅用于个人学习、接口适配和自有账号管理。使用时请遵守目标服务的条款、账号规则和所在地区法律法规。
