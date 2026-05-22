@@ -11,7 +11,7 @@ def test_file(name: str) -> Path:
 
 class GatewayCoreTests(unittest.TestCase):
     def test_extract_bearer_token(self):
-        from gateway.app.auth import extract_bearer_token
+        from app.auth import extract_bearer_token
 
         self.assertEqual(extract_bearer_token("Bearer abc123"), "abc123")
         self.assertIsNone(extract_bearer_token("Basic abc123"))
@@ -19,15 +19,15 @@ class GatewayCoreTests(unittest.TestCase):
 
     def test_verify_admin_key_prefers_admin_key(self):
         from fastapi import HTTPException
-        from gateway.app.auth import verify_admin_key
-        from gateway.app.config import _ENV_CACHE
+        from app.auth import verify_admin_key
+        from app.config import _ENV_CACHE
 
         with mock.patch.dict(
             "os.environ",
             {"ADMIN_KEY": "admin-secret", "OPENAI_API_KEY": "gateway-secret"},
             clear=False,
         ):
-            import gateway.app.config as config
+            import app.config as config
 
             config._ENV_CACHE = {}
             asyncio.run(verify_admin_key("Bearer admin-secret"))
@@ -38,15 +38,15 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 403)
 
     def test_verify_admin_key_falls_back_to_openai_api_key(self):
-        from gateway.app.auth import verify_admin_key
-        from gateway.app.config import _ENV_CACHE
+        from app.auth import verify_admin_key
+        from app.config import _ENV_CACHE
 
         with mock.patch.dict(
             "os.environ",
             {"OPENAI_API_KEY": "gateway-secret"},
             clear=False,
         ):
-            import gateway.app.config as config
+            import app.config as config
 
             config._ENV_CACHE = {}
             with mock.patch.dict("os.environ", {"ADMIN_KEY": ""}, clear=False):
@@ -54,7 +54,7 @@ class GatewayCoreTests(unittest.TestCase):
             config._ENV_CACHE = _ENV_CACHE
 
     def test_chat_messages_to_responses_input(self):
-        from gateway.app.adapters.chat_completions import (
+        from app.adapters.chat_completions import (
             chat_messages_to_responses_input,
         )
 
@@ -68,7 +68,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(mapped[1]["content"][0]["text"], "Hello")
 
     def test_chat_stream_to_done(self):
-        from gateway.app.adapters.sse import responses_stream_to_chat_stream
+        from app.adapters.sse import responses_stream_to_chat_stream
 
         upstream_lines = [
             "event: response.output_text.delta",
@@ -83,7 +83,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(out[-1], "data: [DONE]\n\n")
 
     def test_chat_error_stream_is_openai_chunk(self):
-        from gateway.app.adapters.sse import chat_error_stream
+        from app.adapters.sse import chat_error_stream
 
         out = list(chat_error_stream("timeout", model="grok-4.3"))
         self.assertEqual(out[0], "event: error\n")
@@ -92,7 +92,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(out[-1], "data: [DONE]\n\n")
 
     def test_error_body_uses_openai_shape(self):
-        from gateway.app.errors import error_body
+        from app.errors import error_body
 
         body = error_body(
             "bad value",
@@ -114,7 +114,7 @@ class GatewayCoreTests(unittest.TestCase):
         )
 
     def test_sse_error_stream_emits_error_event_and_done(self):
-        from gateway.app.adapters.sse import sse_error_stream
+        from app.adapters.sse import sse_error_stream
 
         out = list(sse_error_stream("boom", error_type="server_error"))
 
@@ -125,12 +125,12 @@ class GatewayCoreTests(unittest.TestCase):
 
     def test_http_exception_handler_uses_openai_error_shape(self):
         from fastapi.testclient import TestClient
-        from gateway.app.main import app
-        from gateway.app.config import _ENV_CACHE
+        from app.main import app
+        from app.config import _ENV_CACHE
 
         try:
             with mock.patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = None
                 response = TestClient(app).get("/v1/models")
@@ -142,7 +142,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(response.json()["error"]["type"], "invalid_request_error")
 
     def test_responses_payload_includes_har_default_tools(self):
-        from gateway.app.adapters.responses import build_responses_payload
+        from app.adapters.responses import build_responses_payload
 
         payload = build_responses_payload(
             model="grok-4.3",
@@ -165,7 +165,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(payload["max_output_tokens"], 1000000)
 
     def test_responses_payload_preserves_user_tools_and_tool_choice(self):
-        from gateway.app.adapters.responses import build_responses_payload
+        from app.adapters.responses import build_responses_payload
 
         tools = [
             {
@@ -193,7 +193,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIs(payload["tool_choice"], tool_choice)
 
     def test_responses_payload_preserves_reasoning_effort(self):
-        from gateway.app.adapters.responses import build_responses_payload
+        from app.adapters.responses import build_responses_payload
 
         payload = build_responses_payload(
             model="grok-4.3",
@@ -211,7 +211,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(payload["reasoning"], {"effort": "high"})
 
     def test_chat_request_accepts_reasoning_effort(self):
-        from gateway.app.openai.routes import ChatCompletionRequest
+        from app.openai.routes import ChatCompletionRequest
 
         req = ChatCompletionRequest(
             model="grok-4.3",
@@ -222,7 +222,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(req.reasoning_effort, "xhigh")
 
     def test_account_pool_loads_sso_only_accounts(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         path = test_file("tmp_sso_accounts.json")
         try:
@@ -236,7 +236,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(pool.accounts[1].cookie_header, "sso=b; sso-rw=b")
 
     def test_account_pool_loads_sqlite_accounts(self):
-        from gateway.app.accounts import AccountPool, write_account_records
+        from app.accounts import AccountPool, write_account_records
 
         path = test_file("tmp_sso_accounts.sqlite3")
         try:
@@ -256,7 +256,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(pool.accounts[1].cookie_header, "sso=b; sso-rw=b; last-team-id=team-b")
 
     def test_account_pool_migrates_legacy_json_next_to_sqlite(self):
-        from gateway.app.accounts import AccountPool, load_account_records
+        from app.accounts import AccountPool, load_account_records
 
         db_path = test_file("tmp_migrate_accounts.sqlite3")
         json_path = db_path.with_suffix(".json")
@@ -272,14 +272,14 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved[0]["sso"], "legacy")
 
     def test_account_pool_round_robin_and_fallback(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         pool = AccountPool.from_file("missing.json", fallback_sso="fallback")
         self.assertEqual(pool.next_account().name, "env")
         self.assertEqual(pool.next_account().name, "env")
 
     def test_account_pool_skips_non_selectable_accounts(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         path = test_file("tmp_status_accounts.json")
         try:
@@ -300,7 +300,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(pool.next_account().name, "active")
 
     def test_account_pool_raises_when_all_accounts_are_non_selectable(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         path = test_file("tmp_no_selectable_accounts.json")
         try:
@@ -316,7 +316,7 @@ class GatewayCoreTests(unittest.TestCase):
             pool.next_account()
 
     def test_record_account_success_marks_active_and_clears_error(self):
-        from gateway.app.accounts import Account, record_account_result
+        from app.accounts import Account, record_account_result
 
         path = test_file("tmp_account_success.json")
         try:
@@ -339,7 +339,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertGreater(saved[0]["last_checked_at"], 0)
 
     def test_record_account_success_updates_sqlite(self):
-        from gateway.app.accounts import Account, load_account_events, load_account_records, record_account_result, write_account_records
+        from app.accounts import Account, load_account_events, load_account_records, record_account_result, write_account_records
 
         path = test_file("tmp_account_success.sqlite3")
         try:
@@ -365,7 +365,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(events[-1]["status_code"], 200)
 
     def test_record_account_failure_maps_status_and_increments_fail_count(self):
-        from gateway.app.accounts import Account, record_account_result
+        from app.accounts import Account, record_account_result
 
         path = test_file("tmp_account_failure.json")
         try:
@@ -388,7 +388,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved[0]["fail_count"], 3)
 
     def test_record_account_failure_matches_sso_with_prefix(self):
-        from gateway.app.accounts import Account, record_account_result
+        from app.accounts import Account, record_account_result
 
         path = test_file("tmp_account_prefix.json")
         try:
@@ -410,7 +410,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved[0]["last_error"], "forbidden")
 
     def test_account_pool_prefers_imported_accounts_over_env_fallback(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         path = test_file("tmp_imported_accounts.json")
         try:
@@ -424,7 +424,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(pool.next_account().cookie_header, "sso=imported-token; sso-rw=imported-token")
 
     def test_account_pool_loads_team_metadata(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         path = Path(__file__).with_name("tmp_accounts_metadata.json")
         try:
@@ -441,7 +441,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(account.status, "ok")
 
     def test_account_pool_generates_referer_from_team_id(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         path = Path(__file__).with_name("tmp_accounts_team_id.json")
         try:
@@ -457,7 +457,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(account.referer, "https://console.x.ai/team/team-1/chat-playground")
 
     def test_account_cookie_header_includes_account_team_id(self):
-        from gateway.app.accounts import Account
+        from app.accounts import Account
 
         account = Account(name="a", sso="token", team_id="team-1")
 
@@ -467,7 +467,7 @@ class GatewayCoreTests(unittest.TestCase):
         )
 
     def test_settings_auth_accepts_accounts_file(self):
-        from gateway.app.config import Settings
+        from app.config import Settings
 
         path = test_file("tmp_auth_accounts.json")
         try:
@@ -499,8 +499,8 @@ class GatewayCoreTests(unittest.TestCase):
             path.unlink(missing_ok=True)
 
     def test_upstream_account_pool_is_reused_for_round_robin(self):
-        from gateway.app.config import Settings
-        from gateway.app.upstream.xai_client import _ACCOUNT_POOL_CACHE, _account_pool
+        from app.config import Settings
+        from app.upstream.xai_client import _ACCOUNT_POOL_CACHE, _account_pool
 
         path = test_file("tmp_round_robin_accounts.json")
         try:
@@ -538,9 +538,9 @@ class GatewayCoreTests(unittest.TestCase):
             path.unlink(missing_ok=True)
 
     def test_upstream_record_result_updates_file_and_clears_pool_cache(self):
-        from gateway.app.accounts import Account
-        from gateway.app.config import Settings
-        from gateway.app.upstream.xai_client import _ACCOUNT_POOL_CACHE, _record_result
+        from app.accounts import Account
+        from app.config import Settings
+        from app.upstream.xai_client import _ACCOUNT_POOL_CACHE, _record_result
 
         path = test_file("tmp_record_result_accounts.json")
         try:
@@ -588,7 +588,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(_ACCOUNT_POOL_CACHE, {})
 
     def test_parse_sso_txt_ignores_blank_lines_and_uses_numeric_names(self):
-        from gateway.app.admin.routes import parse_sso_txt
+        from app.admin.routes import parse_sso_txt
 
         accounts = parse_sso_txt("\n sso=aaa \n\n bbb\n")
 
@@ -598,7 +598,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertTrue(all("team_id" in a and "referer" in a for a in accounts))
 
     def test_parse_sso_txt_accepts_sso_team_id_per_line(self):
-        from gateway.app.admin.routes import parse_sso_txt
+        from app.admin.routes import parse_sso_txt
 
         accounts = parse_sso_txt(
             "\n"
@@ -621,7 +621,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(accounts[2]["referer"], "")
 
     def test_parse_sso_txt_deduplicates_by_sso_and_team_id_pair(self):
-        from gateway.app.admin.routes import parse_sso_txt
+        from app.admin.routes import parse_sso_txt
 
         accounts = parse_sso_txt("same,team-a\nsame,team-b\nsame,team-a\n")
 
@@ -629,15 +629,15 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual([a["team_id"] for a in accounts], ["team-a", "team-b"])
 
     def test_mask_sso_hides_token_body(self):
-        from gateway.app.admin.routes import mask_sso
+        from app.admin.routes import mask_sso
 
         self.assertEqual(mask_sso("abcdefghijklmnopqrstuvwxyz"), "abcd...wxyz")
         self.assertEqual(mask_sso("short"), "*****")
 
     def test_account_referer_overrides_global_referer(self):
-        from gateway.app.accounts import Account
-        from gateway.app.config import Settings
-        from gateway.app.upstream.xai_client import _upstream_headers
+        from app.accounts import Account
+        from app.config import Settings
+        from app.upstream.xai_client import _upstream_headers
 
         settings = Settings(
             host="0.0.0.0",
@@ -670,13 +670,13 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(_upstream_headers(settings, account)["referer"], "https://console.x.ai/team/account/chat-playground")
 
     def test_write_accounts_saves_json_and_masks_summary(self):
-        from gateway.app.admin.routes import _load_account_summary, _write_accounts
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import _load_account_summary, _write_accounts
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_write_accounts.json")
         try:
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 _write_accounts([{"name": "account-1", "sso": "abcdefghijklmnopqrstuvwxyz"}])
@@ -693,14 +693,14 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(summary["accounts"][0]["sso"], "abcd...wxyz")
 
     def test_write_accounts_saves_sqlite_and_masks_summary(self):
-        from gateway.app.accounts import load_account_records
-        from gateway.app.admin.routes import _load_account_summary, _write_accounts
-        from gateway.app.config import _ENV_CACHE
+        from app.accounts import load_account_records
+        from app.admin.routes import _load_account_summary, _write_accounts
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_write_accounts.sqlite3")
         try:
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 _write_accounts([{"name": "1", "sso": "abcdefghijklmnopqrstuvwxyz", "team_id": "team-a"}])
@@ -716,8 +716,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(summary["accounts"][0]["sso"], "abcd...wxyz")
 
     def test_account_summary_includes_status_counts_usage_and_error_categories(self):
-        from gateway.app.admin.routes import _load_account_summary
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import _load_account_summary
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_summary_stats_accounts.json")
         try:
@@ -731,7 +731,7 @@ class GatewayCoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 summary = _load_account_summary()
@@ -754,7 +754,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(summary["accounts"][2]["error_category"], "cloudflare")
 
     def test_classify_account_error_groups_common_failures(self):
-        from gateway.app.admin.routes import classify_account_error
+        from app.admin.routes import classify_account_error
 
         self.assertEqual(classify_account_error(401, "unauthorized"), "auth")
         self.assertEqual(classify_account_error(403, "forbidden"), "auth")
@@ -767,9 +767,9 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(classify_account_error(500, "upstream exploded"), "upstream")
 
     def test_check_account_health_uses_regular_responses_payload_shape(self):
-        from gateway.app.accounts import Account
-        from gateway.app.config import Settings
-        from gateway.app.upstream.xai_client import check_account_health
+        from app.accounts import Account
+        from app.config import Settings
+        from app.upstream.xai_client import check_account_health
 
         captured = {}
 
@@ -817,7 +817,7 @@ class GatewayCoreTests(unittest.TestCase):
             model_list=["grok-4.3"],
         )
 
-        with mock.patch("gateway.app.upstream.xai_client.crequests.AsyncSession", FakeSession):
+        with mock.patch("app.upstream.xai_client.crequests.AsyncSession", FakeSession):
             status_code, error = asyncio.run(
                 check_account_health(settings, Account(name="1", sso="token", team_id="team-a"))
             )
@@ -831,8 +831,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(captured["payload"]["max_output_tokens"], 16)
 
     def test_admin_add_accounts_merges_without_overwriting_existing(self):
-        from gateway.app.admin.routes import add_accounts
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import add_accounts
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_admin_add_accounts.json")
         try:
@@ -841,7 +841,7 @@ class GatewayCoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 asyncio.run(add_accounts({"text": "old,team-a\nnew,team-b\n"}))
@@ -856,8 +856,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved[1]["team_id"], "team-b")
 
     def test_admin_disable_enable_delete_and_refresh_accounts(self):
-        from gateway.app.admin.routes import delete_accounts, refresh_accounts, toggle_accounts_disabled
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import delete_accounts, refresh_accounts, toggle_accounts_disabled
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_admin_batch_accounts.json")
         try:
@@ -869,7 +869,7 @@ class GatewayCoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 asyncio.run(toggle_accounts_disabled({"accounts": [{"sso": "a", "team_id": "team-a"}], "disabled": True}))
@@ -877,7 +877,7 @@ class GatewayCoreTests(unittest.TestCase):
                 asyncio.run(toggle_accounts_disabled({"accounts": [{"sso": "a", "team_id": "team-a"}], "disabled": False}))
                 enabled = json.loads(path.read_text(encoding="utf-8"))
                 with mock.patch(
-                    "gateway.app.admin.routes.check_account_health",
+                    "app.admin.routes.check_account_health",
                     new=mock.AsyncMock(return_value=(200, "")),
                 ):
                     asyncio.run(refresh_accounts({"accounts": [{"sso": "b", "team_id": "team-b"}]}))
@@ -897,7 +897,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in deleted], ["1"])
 
     def test_account_pool_defaults_missing_names_to_numeric_strings(self):
-        from gateway.app.accounts import AccountPool
+        from app.accounts import AccountPool
 
         path = test_file("tmp_numeric_name_accounts.json")
         try:
@@ -909,8 +909,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual([item.name for item in pool.accounts], ["1", "2"])
 
     def test_admin_batch_actions_accept_account_indexes(self):
-        from gateway.app.admin.routes import refresh_accounts, toggle_accounts_disabled
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import refresh_accounts, toggle_accounts_disabled
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_admin_batch_index_accounts.json")
         try:
@@ -922,13 +922,13 @@ class GatewayCoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 asyncio.run(toggle_accounts_disabled({"indexes": [0], "disabled": True}))
                 disabled = json.loads(path.read_text(encoding="utf-8"))
                 with mock.patch(
-                    "gateway.app.admin.routes.check_account_health",
+                    "app.admin.routes.check_account_health",
                     new=mock.AsyncMock(return_value=(403, "forbidden")),
                 ):
                     asyncio.run(refresh_accounts({"indexes": [1]}))
@@ -942,9 +942,9 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(refreshed[1]["last_error"], "forbidden")
 
     def test_admin_refresh_accounts_uses_sqlite_and_health_check(self):
-        from gateway.app.accounts import load_account_records, write_account_records
-        from gateway.app.admin.routes import refresh_accounts
-        from gateway.app.config import _ENV_CACHE
+        from app.accounts import load_account_records, write_account_records
+        from app.admin.routes import refresh_accounts
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_admin_refresh_accounts.sqlite3")
         try:
@@ -953,11 +953,11 @@ class GatewayCoreTests(unittest.TestCase):
                 [{"name": "1", "sso": "a", "team_id": "team-a", "status": "failed", "last_error": "old"}],
             )
             with mock.patch.dict("os.environ", {"ACCOUNTS_DB": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 with mock.patch(
-                    "gateway.app.admin.routes.check_account_health",
+                    "app.admin.routes.check_account_health",
                     new=mock.AsyncMock(return_value=(429, "rate limited")),
                 ) as probe:
                     response = asyncio.run(refresh_accounts({"indexes": [0]}))
@@ -973,8 +973,8 @@ class GatewayCoreTests(unittest.TestCase):
         probe.assert_awaited_once()
 
     def test_admin_stream_refresh_accounts_emits_progress_and_updates_status(self):
-        from gateway.app.admin.routes import stream_refresh_accounts
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import stream_refresh_accounts
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_admin_stream_refresh.json")
 
@@ -993,11 +993,11 @@ class GatewayCoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 with mock.patch(
-                    "gateway.app.admin.routes.check_account_health",
+                    "app.admin.routes.check_account_health",
                     new=mock.AsyncMock(side_effect=[(200, ""), (403, "forbidden")]),
                 ):
                     response = asyncio.run(stream_refresh_accounts({"indexes": [0, 1], "job_id": "job-test"}))
@@ -1017,8 +1017,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved[1]["status"], "invalid")
 
     def test_admin_cancel_stream_refresh_stops_before_probe(self):
-        from gateway.app.admin.routes import cancel_refresh_accounts, stream_refresh_accounts
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import cancel_refresh_accounts, stream_refresh_accounts
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_admin_stream_cancel.json")
 
@@ -1031,12 +1031,12 @@ class GatewayCoreTests(unittest.TestCase):
         try:
             path.write_text('[{"name":"1","sso":"a","team_id":"team-a","status":"failed"}]', encoding="utf-8")
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 asyncio.run(cancel_refresh_accounts({"job_id": "job-cancel"}))
                 with mock.patch(
-                    "gateway.app.admin.routes.check_account_health",
+                    "app.admin.routes.check_account_health",
                     new=mock.AsyncMock(return_value=(200, "")),
                 ) as probe:
                     response = asyncio.run(stream_refresh_accounts({"indexes": [0], "job_id": "job-cancel"}))
@@ -1051,8 +1051,8 @@ class GatewayCoreTests(unittest.TestCase):
         probe.assert_not_awaited()
 
     def test_admin_edit_account_by_index_updates_team_status_and_optional_sso(self):
-        from gateway.app.admin.routes import edit_account
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import edit_account
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_admin_edit_account.json")
         try:
@@ -1061,7 +1061,7 @@ class GatewayCoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.dict("os.environ", {"ACCOUNTS_FILE": str(path)}, clear=False):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 asyncio.run(edit_account({
@@ -1083,8 +1083,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved[0]["last_error"], "")
 
     def test_account_summary_reports_env_fallback_when_file_empty(self):
-        from gateway.app.admin.routes import _load_account_summary
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import _load_account_summary
+        from app.config import _ENV_CACHE
 
         path = test_file("tmp_empty_accounts.json")
         try:
@@ -1094,7 +1094,7 @@ class GatewayCoreTests(unittest.TestCase):
                 {"ACCOUNTS_FILE": str(path), "UPSTREAM_SSO": "env-token"},
                 clear=False,
             ):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = {}
                 summary = _load_account_summary()
@@ -1106,21 +1106,21 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(summary["effective_source"], "env_fallback")
 
     def test_retryable_status_codes(self):
-        from gateway.app.accounts import is_retryable_status
+        from app.accounts import is_retryable_status
 
         self.assertTrue(is_retryable_status(429))
         self.assertTrue(is_retryable_status(500))
         self.assertFalse(is_retryable_status(400))
 
     def test_models_from_har(self):
-        from gateway.app.config import collect_models_from_har
+        from app.config import collect_models_from_har
 
         models = collect_models_from_har(r"D:\Desktop\consolex\console.x.ai.har")
         self.assertIn("grok-4.3", models)
         self.assertIn("grok-4.20-multi-agent-0309", models)
 
     def test_load_settings_with_upstream_proxy(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         with mock.patch.dict(
             "os.environ",
@@ -1137,7 +1137,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings.upstream_impersonate, "chrome136")
 
     def test_load_settings_reads_gateway_dotenv(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         path = test_file("tmp_gateway_read.env")
         defaults = test_file("tmp_gateway_read_defaults.toml")
@@ -1147,16 +1147,16 @@ class GatewayCoreTests(unittest.TestCase):
             defaults.write_text('[app]\nopenai_api_key = ""\n\n[models]\nids = []\n', encoding="utf-8")
             runtime.write_text("", encoding="utf-8")
             with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
-                "gateway.app.config._dotenv_path",
+                "app.config._dotenv_path",
                 return_value=path,
             ), mock.patch(
-                "gateway.app.runtime_config.default_config_path",
+                "app.runtime_config.default_config_path",
                 return_value=defaults,
             ), mock.patch(
-                "gateway.app.runtime_config.runtime_config_path",
+                "app.runtime_config.runtime_config_path",
                 return_value=runtime,
             ):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = None
                 settings = load_settings()
@@ -1168,23 +1168,23 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings.openai_api_key, "sk-gateway-local-test")
 
     def test_load_settings_defaults_accounts_to_sqlite(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         missing_env = test_file("missing_accounts_default.env")
         with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
-            "gateway.app.config._dotenv_path",
+            "app.config._dotenv_path",
             return_value=missing_env,
         ):
-            import gateway.app.config as config
+            import app.config as config
 
             config._ENV_CACHE = None
             settings = load_settings()
             config._ENV_CACHE = None
 
-        self.assertTrue(settings.accounts_file.endswith("gateway\\accounts.sqlite3") or settings.accounts_file.endswith("gateway/accounts.sqlite3"))
+        self.assertTrue(settings.accounts_file.endswith("\accounts.sqlite3") or settings.accounts_file.endswith("accounts.sqlite3"))
 
     def test_load_settings_prefers_accounts_db_over_legacy_accounts_file(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         db_path = str(test_file("preferred.sqlite3"))
         legacy_path = str(test_file("legacy.json"))
@@ -1193,7 +1193,7 @@ class GatewayCoreTests(unittest.TestCase):
             {"ACCOUNTS_DB": db_path, "ACCOUNTS_FILE": legacy_path},
             clear=False,
         ):
-            import gateway.app.config as config
+            import app.config as config
 
             config._ENV_CACHE = None
             settings = load_settings()
@@ -1202,7 +1202,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings.accounts_file, db_path)
 
     def test_runtime_config_merges_defaults_and_runtime_overrides(self):
-        from gateway.app.runtime_config import load_runtime_config
+        from app.runtime_config import load_runtime_config
 
         defaults = test_file("tmp_config_defaults.toml")
         runtime = test_file("tmp_config_runtime.toml")
@@ -1225,7 +1225,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(data["chat"]["timeout"], 120)
 
     def test_load_settings_reads_runtime_config_before_dotenv(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         defaults = test_file("tmp_config_defaults.toml")
         runtime = test_file("tmp_config_runtime.toml")
@@ -1241,16 +1241,16 @@ class GatewayCoreTests(unittest.TestCase):
             )
             dotenv.write_text("OPENAI_API_KEY=dotenv-key\nREQUEST_TIMEOUT_S=300\n", encoding="utf-8")
             with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
-                "gateway.app.config._dotenv_path",
+                "app.config._dotenv_path",
                 return_value=dotenv,
             ), mock.patch(
-                "gateway.app.runtime_config.default_config_path",
+                "app.runtime_config.default_config_path",
                 return_value=defaults,
             ), mock.patch(
-                "gateway.app.runtime_config.runtime_config_path",
+                "app.runtime_config.runtime_config_path",
                 return_value=runtime,
             ):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = None
                 settings = load_settings()
@@ -1265,7 +1265,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings.model_list, ["m-runtime"])
 
     def test_environment_overrides_runtime_config(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         defaults = test_file("tmp_config_defaults.toml")
         runtime = test_file("tmp_config_runtime.toml")
@@ -1278,16 +1278,16 @@ class GatewayCoreTests(unittest.TestCase):
                 {"OPENAI_API_KEY": "environment-key"},
                 clear=True,
             ), mock.patch(
-                "gateway.app.config._dotenv_path",
+                "app.config._dotenv_path",
                 return_value=missing_env,
             ), mock.patch(
-                "gateway.app.runtime_config.default_config_path",
+                "app.runtime_config.default_config_path",
                 return_value=defaults,
             ), mock.patch(
-                "gateway.app.runtime_config.runtime_config_path",
+                "app.runtime_config.runtime_config_path",
                 return_value=runtime,
             ):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = None
                 settings = load_settings()
@@ -1299,7 +1299,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings.openai_api_key, "environment-key")
 
     def test_set_runtime_config_value_writes_nested_toml(self):
-        from gateway.app.runtime_config import load_runtime_config, set_runtime_config_value
+        from app.runtime_config import load_runtime_config, set_runtime_config_value
 
         runtime = test_file("tmp_config_write.toml")
         try:
@@ -1313,8 +1313,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(data["chat"]["timeout"], 88)
 
     def test_admin_update_settings_writes_runtime_config_not_dotenv(self):
-        from gateway.app.admin.routes import update_admin_settings
-        from gateway.app.runtime_config import load_runtime_config
+        from app.admin.routes import update_admin_settings
+        from app.runtime_config import load_runtime_config
 
         defaults = test_file("tmp_admin_defaults.toml")
         runtime = test_file("tmp_admin_runtime.toml")
@@ -1324,16 +1324,16 @@ class GatewayCoreTests(unittest.TestCase):
             runtime.write_text("", encoding="utf-8")
             dotenv.write_text("OPENAI_API_KEY=dotenv-key\n", encoding="utf-8")
             with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
-                "gateway.app.config._dotenv_path",
+                "app.config._dotenv_path",
                 return_value=dotenv,
             ), mock.patch(
-                "gateway.app.runtime_config.default_config_path",
+                "app.runtime_config.default_config_path",
                 return_value=defaults,
             ), mock.patch(
-                "gateway.app.runtime_config.runtime_config_path",
+                "app.runtime_config.runtime_config_path",
                 return_value=runtime,
             ):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = None
                 asyncio.run(update_admin_settings({"openai_api_key": "runtime-key"}))
@@ -1350,7 +1350,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertNotIn("OPENAI_API_KEY=runtime-key", saved_dotenv)
 
     def test_admin_settings_returns_editable_runtime_config(self):
-        from gateway.app.admin.routes import _load_gateway_settings_summary
+        from app.admin.routes import _load_gateway_settings_summary
 
         settings = _load_gateway_settings_summary()
 
@@ -1365,8 +1365,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIn("chat.timeout", field_keys)
 
     def test_admin_settings_masks_secret_values(self):
-        from gateway.app.admin.routes import _load_gateway_settings_summary
-        from gateway.app.config import _ENV_CACHE
+        from app.admin.routes import _load_gateway_settings_summary
+        from app.config import _ENV_CACHE
 
         with mock.patch.dict(
             "os.environ",
@@ -1377,7 +1377,7 @@ class GatewayCoreTests(unittest.TestCase):
             },
             clear=False,
         ):
-            import gateway.app.config as config
+            import app.config as config
 
             config._ENV_CACHE = None
             settings = _load_gateway_settings_summary()
@@ -1390,8 +1390,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(settings["masked_values"]["app.admin_key"], "admi...cret")
 
     def test_admin_update_settings_skips_empty_secret_fields(self):
-        from gateway.app.admin.routes import update_admin_settings
-        from gateway.app.runtime_config import load_runtime_config
+        from app.admin.routes import update_admin_settings
+        from app.runtime_config import load_runtime_config
 
         defaults = test_file("tmp_admin_secret_defaults.toml")
         runtime = test_file("tmp_admin_secret_runtime.toml")
@@ -1401,16 +1401,16 @@ class GatewayCoreTests(unittest.TestCase):
             runtime.write_text('[app]\nopenai_api_key = "old-key"\nadmin_key = "old-admin"\n', encoding="utf-8")
             dotenv.write_text("", encoding="utf-8")
             with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
-                "gateway.app.config._dotenv_path",
+                "app.config._dotenv_path",
                 return_value=dotenv,
             ), mock.patch(
-                "gateway.app.runtime_config.default_config_path",
+                "app.runtime_config.default_config_path",
                 return_value=defaults,
             ), mock.patch(
-                "gateway.app.runtime_config.runtime_config_path",
+                "app.runtime_config.runtime_config_path",
                 return_value=runtime,
             ):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = None
                 asyncio.run(update_admin_settings({
@@ -1430,8 +1430,8 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved["app"]["admin_key"], "new-admin")
 
     def test_admin_update_settings_writes_multiple_runtime_fields(self):
-        from gateway.app.admin.routes import update_admin_settings
-        from gateway.app.runtime_config import load_runtime_config
+        from app.admin.routes import update_admin_settings
+        from app.runtime_config import load_runtime_config
 
         defaults = test_file("tmp_admin_multi_defaults.toml")
         runtime = test_file("tmp_admin_multi_runtime.toml")
@@ -1448,16 +1448,16 @@ class GatewayCoreTests(unittest.TestCase):
             runtime.write_text("", encoding="utf-8")
             dotenv.write_text("OPENAI_API_KEY=dotenv-key\n", encoding="utf-8")
             with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
-                "gateway.app.config._dotenv_path",
+                "app.config._dotenv_path",
                 return_value=dotenv,
             ), mock.patch(
-                "gateway.app.runtime_config.default_config_path",
+                "app.runtime_config.default_config_path",
                 return_value=defaults,
             ), mock.patch(
-                "gateway.app.runtime_config.runtime_config_path",
+                "app.runtime_config.runtime_config_path",
                 return_value=runtime,
             ):
-                import gateway.app.config as config
+                import app.config as config
 
                 config._ENV_CACHE = None
                 asyncio.run(update_admin_settings({
@@ -1487,25 +1487,25 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertEqual(saved_runtime["generation"]["temperature"], 0.2)
 
     def test_load_settings_reads_admin_key(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         with mock.patch.dict("os.environ", {"ADMIN_KEY": "admin-secret"}, clear=False):
             settings = load_settings()
         self.assertEqual(settings.admin_key, "admin-secret")
 
     def test_load_settings_does_not_default_to_fixed_team_referer(self):
-        from gateway.app.config import load_settings
+        from app.config import load_settings
 
         missing_env = test_file("missing_gateway.env")
         with mock.patch.dict("os.environ", {}, clear=True), mock.patch(
-            "gateway.app.config._dotenv_path",
+            "app.config._dotenv_path",
             return_value=missing_env,
         ):
             settings = load_settings()
         self.assertEqual(settings.upstream_referer, "")
 
     def test_set_dotenv_value_updates_existing_key_and_appends_missing_key(self):
-        from gateway.app.config import set_dotenv_value
+        from app.config import set_dotenv_value
 
         path = test_file("tmp_gateway.env")
         try:
@@ -1522,7 +1522,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertNotIn("OPENAI_API_KEY=old-key", saved)
 
     def test_cookie_header_prefers_sso_strategy(self):
-        from gateway.app.config import Settings
+        from app.config import Settings
 
         s = Settings(
             host="0.0.0.0",
@@ -1552,7 +1552,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIn("cf_clearance=clear-1", cookie)
 
     def test_cookie_header_extracts_clearance_from_cf_cookies(self):
-        from gateway.app.config import Settings
+        from app.config import Settings
 
         s = Settings(
             host="0.0.0.0",
@@ -1580,7 +1580,7 @@ class GatewayCoreTests(unittest.TestCase):
         self.assertIn("cf_clearance=zzz", cookie)
 
     def test_admin_page_uses_reference_style_management_layout(self):
-        from gateway.app.admin.routes import admin_static_path
+        from app.admin.routes import admin_static_path
 
         html = admin_static_path("index.html").read_text(encoding="utf-8")
         js = admin_static_path("admin.js").read_text(encoding="utf-8")
@@ -1676,4 +1676,5 @@ class GatewayCoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

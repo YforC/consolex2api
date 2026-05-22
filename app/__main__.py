@@ -1,4 +1,4 @@
-"""Run gateway with `python -m gateway.app`."""
+﻿"""Run gateway with `python -m app`."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from .config import load_settings
 def main() -> None:
     settings = load_settings()
     uvicorn.run(
-        "gateway.app.main:app",
+        "app.main:app",
         host=settings.host,
         port=settings.port,
         reload=False,
@@ -19,4 +19,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 

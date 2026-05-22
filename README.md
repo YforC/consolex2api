@@ -1,4 +1,4 @@
-# ConsoleX OpenAI Gateway
+﻿# ConsoleX OpenAI Gateway
 
 This gateway exposes OpenAI-compatible endpoints and forwards requests to `https://console.x.ai/v1/responses` using `curl_cffi` browser impersonation for Cloudflare-sensitive traffic.
 
@@ -13,7 +13,7 @@ This gateway exposes OpenAI-compatible endpoints and forwards requests to `https
 
 - `OPENAI_API_KEY` (required): gateway API key for OpenAI-compatible `Authorization: Bearer <key>`
 - `ADMIN_KEY` (recommended): admin UI/API key for `/admin`; falls back to `OPENAI_API_KEY` only when unset
-- `ACCOUNTS_DB` (optional): SQLite account database path, default `gateway/accounts.sqlite3`
+- `ACCOUNTS_DB` (optional): SQLite account database path, default `accounts.sqlite3`
 - `ACCOUNTS_FILE` (legacy optional): JSON account list path; only used when `ACCOUNTS_DB` is unset
 - `UPSTREAM_SSO` (optional): single-account fallback when the account database is missing or empty
 - `UPSTREAM_COOKIE` (optional): raw-cookie fallback only when no SSO account is available
@@ -33,25 +33,25 @@ This gateway exposes OpenAI-compatible endpoints and forwards requests to `https
 - `GATEWAY_MODELS` (optional CSV list; if empty, models are inferred from HAR)
 - `HAR_FILE_PATH` (default: `D:\Desktop\consolex\console.x.ai.har`)
 
-Runtime-managed values can also live in `gateway/config.toml`, seeded from `gateway/config.defaults.toml`. System environment variables still have highest priority; non-empty runtime config values override legacy `.env` values for managed keys such as `OPENAI_API_KEY`, models, timeout, proxy, upstream URL, and sampling defaults.
+Runtime-managed values can also live in `config.toml`, seeded from `config.defaults.toml`. System environment variables still have highest priority; non-empty runtime config values override legacy `.env` values for managed keys such as `OPENAI_API_KEY`, models, timeout, proxy, upstream URL, and sampling defaults.
 
 ## Run
 
 ```bash
 cd D:\Desktop\consolex
-python -m uvicorn gateway.app.main:app --host 0.0.0.0 --port 8787
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8787
 ```
 
 Or:
 
 ```bash
 cd D:\Desktop\consolex
-python -m gateway.app
+python -m app
 ```
 
 ## Multi Account
 
-Accounts are stored in SQLite at `gateway/accounts.sqlite3` by default. Use the admin UI to import a TXT file with one account per line:
+Accounts are stored in SQLite at `accounts.sqlite3` by default. Use the admin UI to import a TXT file with one account per line:
 
 ```txt
 sso-token-1,team-id-1
@@ -66,7 +66,7 @@ Requests use round-robin account selection. Non-streaming requests retry the nex
 
 Open `http://127.0.0.1:8787/admin` after starting the gateway. Enter `ADMIN_KEY` to manage the gateway. If `ADMIN_KEY` is not configured, the admin UI temporarily accepts `OPENAI_API_KEY` for compatibility.
 
-The admin page updates runtime settings in `gateway/config.toml`, including gateway/admin keys, proxy, Cloudflare cookies, model list, timeout, and default sampling values. If your deployment provides the same values as system environment variables, environment values still override runtime config.
+The admin page updates runtime settings in `config.toml`, including admin keys, proxy, Cloudflare cookies, model list, timeout, and default sampling values. If your deployment provides the same values as system environment variables, environment values still override runtime config.
 
 Import a `.txt` file with one account per line:
 
@@ -81,10 +81,10 @@ Team discovery is intentionally not automatic. TXT import writes the per-account
 
 ## Docker Deployment
 
-For an overseas server, leave `UPSTREAM_PROXY` empty. The compose file persists accounts under `gateway/data/accounts.sqlite3` inside the mounted data directory:
+For an overseas server, leave `UPSTREAM_PROXY` empty. The compose file persists accounts under `data/accounts.sqlite3` inside the mounted data directory:
 
 ```bash
-cp gateway/.env.example gateway/.env
+cp .env.example .env
 docker compose up -d --build
 ```
 
@@ -105,5 +105,6 @@ curl -N http://127.0.0.1:8787/v1/chat/completions \
 ## HAR Profile Utility
 
 ```bash
-python gateway/scripts/extract_har_profile.py --har D:\Desktop\consolex\console.x.ai.har --out gateway/har_profile.json
+python scripts/extract_har_profile.py --har D:\Desktop\consolex\console.x.ai.har --out har_profile.json
 ```
+

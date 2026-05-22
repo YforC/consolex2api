@@ -1,4 +1,4 @@
-const loginView = document.querySelector('#loginView');
+﻿const loginView = document.querySelector('#loginView');
 const adminShell = document.querySelector('.admin-shell');
 const loginAdminKey = document.querySelector('#loginAdminKey');
 const loginBtn = document.querySelector('#loginBtn');
@@ -266,7 +266,7 @@ function renderFilteredAccounts() {
 function renderSettings(data) {
   latestSettings = data;
   renderConfigForm(data);
-  const runtimePath = data.runtime_config_path || 'gateway/config.toml';
+  const runtimePath = data.runtime_config_path || 'config.toml';
   const adminHint = data.admin_key_configured ? '' : ' ADMIN_KEY 未配置，管理后台临时使用网关 API Key 登录。';
   gatewayKeyMeta.textContent = `配置文件：${runtimePath}。环境变量会覆盖这里保存的值。${adminHint}`;
 }
@@ -672,3 +672,4 @@ if (adminKeyValue) {
 } else {
   showLogin();
 }
+

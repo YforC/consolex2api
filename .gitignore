@@ -7,11 +7,11 @@ __pycache__/
 
 .env
 *.env
-gateway/.env
-gateway/config.toml
-gateway/accounts.json
-gateway/accounts.sqlite3
-gateway/*.sqlite3
+config.toml
+accounts.json
+accounts.sqlite3
+*.sqlite3
+data/
 
 *.har
 cookies*.json

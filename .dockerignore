@@ -1,0 +1,12 @@
+.git
+.env
+*.env
+config.toml
+accounts.json
+accounts.sqlite3
+*.sqlite3
+data/
+gateway/
+__pycache__/
+*.py[cod]
+.pytest_cache/

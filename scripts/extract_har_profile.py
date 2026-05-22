@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Extract upstream profile from console.x.ai HAR."""
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--out",
-        default="gateway/har_profile.json",
+        default="har_profile.json",
         help="Output JSON path",
     )
     args = parser.parse_args()
@@ -72,4 +72,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
